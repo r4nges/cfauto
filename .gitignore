@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build
+build/
+dist/
+*.spec.bak
+
+# Dados locais e segredos
+*.db
+*.db-journal
+*.sqlite
+*.pem
+*.key
+chave_privada*
+referencia/planilhas/
+
+# IDE/OS
+.vscode/
+.idea/
+Thumbs.db
