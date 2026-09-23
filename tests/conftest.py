@@ -55,3 +55,29 @@ def sessao(fabrica):
 
     with transacao(fabrica) as s:
         yield s
+
+
+@pytest.fixture
+def admin(sessao, relogio):
+    from cfauto.auth.service import NovoUsuario, criar_usuario
+
+    return criar_usuario(
+        sessao, None, NovoUsuario(nome="Dono", login="dono", senha="segredo1", admin=True)
+    )
+
+
+@pytest.fixture
+def operador(sessao, admin):
+    from cfauto.auth.service import NovoUsuario, criar_usuario
+    from cfauto.core.permissoes import Modulo
+
+    return criar_usuario(
+        sessao,
+        admin,
+        NovoUsuario(
+            nome="Maria",
+            login="maria",
+            senha="segredo2",
+            modulos=frozenset({Modulo.PDV, Modulo.CLIENTES}),
+        ),
+    )
