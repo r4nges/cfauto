@@ -29,3 +29,29 @@ def relogio():
     clock.definir(r.agora)
     yield r
     clock.resetar()
+
+
+@pytest.fixture
+def engine(tmp_path):
+    from cfauto.core.db import criar_engine
+    from cfauto.core.migracoes import migrar
+
+    eng = criar_engine(f"sqlite:///{tmp_path / 'teste.db'}")
+    migrar(eng)
+    yield eng
+    eng.dispose()
+
+
+@pytest.fixture
+def fabrica(engine):
+    from cfauto.core.db import criar_fabrica
+
+    return criar_fabrica(engine)
+
+
+@pytest.fixture
+def sessao(fabrica):
+    from cfauto.core.db import transacao
+
+    with transacao(fabrica) as s:
+        yield s
