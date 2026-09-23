@@ -25,11 +25,13 @@ def rodar(fabrica: sessionmaker[Session], job: Job) -> None:
     log.info("job %s iniciado", job.nome)
     try:
         job.executar()
+        with transacao(fabrica) as s:
+            config.definir(s, _chave(job.nome), clock.agora())
     except Exception:
+        # cobre falha em executar() OU na gravação de última execução: nos dois
+        # casos a exceção é logada e relançada, e a última execução não é gravada.
         log.exception("job %s falhou", job.nome)
         raise
-    with transacao(fabrica) as s:
-        config.definir(s, _chave(job.nome), clock.agora())
     log.info("job %s concluído", job.nome)
 
 

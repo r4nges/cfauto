@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 
 import pytest
@@ -45,6 +46,16 @@ def test_rodar_falha_propaga_e_nao_grava(fabrica, relogio):
     with pytest.raises(RuntimeError):
         rodar(fabrica, _job("a", [], falhar=True))
     assert ultima_execucao(fabrica, "a") is None
+
+
+def test_rodar_falha_bookkeeping_loga_e_propaga(fabrica, relogio, monkeypatch, caplog):
+    def _falha(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("cfauto.jobs.runner.config.definir", _falha)
+    with caplog.at_level(logging.ERROR, logger="cfauto.jobs"), pytest.raises(RuntimeError):
+        rodar(fabrica, _job("a", []))
+    assert "job a falhou" in caplog.text
 
 
 def test_catchup_roda_so_pendentes_e_isola_erros(fabrica, relogio):
