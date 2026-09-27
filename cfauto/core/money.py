@@ -22,7 +22,7 @@ def para_decimal(valor: str | int | float | Decimal) -> Decimal:
         return Decimal(valor)
     if isinstance(valor, float):
         return Decimal(str(valor))
-    texto = valor.strip().replace(" ", "").replace(" ", "")
+    texto = valor.strip().replace("\u00a0", "").replace(" ", "")
     negativo = texto.startswith("-")
     if negativo:
         texto = texto[1:]
