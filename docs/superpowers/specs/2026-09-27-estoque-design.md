@@ -67,7 +67,7 @@ Propriedades de `Servico`: `custo_materiais = Σ(custo_unit × qtd)`; `preco = a
 
 **movimento_estoque**: `produto_id` FK, `data_hora` (índice), `tipo` enum (`CADASTRO`, `ENTRADA_NF`, `ESTORNO_NF`, `AJUSTE`, `VENDA`, `CANCELAMENTO_VENDA`), `quantidade` Quantidade com sinal (≠ 0), `saldo_apos` Quantidade, `usuario_id` FK, `motivo` enum nulo (`INVENTARIO`, `PERDA_AVARIA`, `CONSUMO_INTERNO`, `OUTRO`; só em `AJUSTE`), `observacao` str(200) nula, `nota_entrada_item_id` FK nulo. `VENDA`/`CANCELAMENTO_VENDA` existem no enum; a coluna `venda_item_id` chega na migration do sub-projeto 4.
 
-**nota_entrada**: `chave` str(44), `numero` int, `serie` int, `modelo` int (55/65), `emitente_cnpj` str(14), `emitente_nome` str(120), `data_emissao` date, `data_entrada` datetime, `valor_total` Dinheiro (`vNF`), `usuario_id` FK, `xml_original` Text, `estornada` bool, `estornada_em` datetime nulo, `estornada_por` FK nulo.
+**nota_entrada**: `chave` str(44), `numero` int, `serie` int, `modelo` int (55/65), `emitente_cnpj` str(14), `emitente_nome` str(120), `data_emissao` date, `data_entrada` datetime, `valor_total` Dinheiro (`vNF`), `usuario_id` FK, `xml_original` bytes (LargeBinary, carregado sob demanda), `estornada` bool, `estornada_em` datetime nulo, `estornada_por` FK nulo.
 Índice **único parcial** `ix_nota_entrada_chave_ativa` em `chave` `WHERE estornada = 0`: impede importar duas vezes, mas permite reimportar uma nota estornada (corrigir vínculo errado = estornar e reimportar).
 
 **nota_entrada_item**: `nota_id` FK, `n_item` int, `codigo_fornecedor` str(60) (`cProd`), `ean` str(14) nulo, `descricao_nota` str(200), `unidade` str(10) (`uCom`), `qtd_nota` DecimalEscalado(4) (`qCom`), `valor_produto`, `desconto`, `frete`, `seguro`, `outros`, `ipi`, `icms_st` (Dinheiro, padrão 0), `custo_total` Dinheiro, `produto_id` FK nulo (nulo = item ignorado), `fator` Quantidade nulo, `qtd_estoque` Quantidade nulo, `preco_entrada_aplicado` Custo nulo, `preco_entrada_anterior` Custo nulo, `data_ult_entrada_anterior` date nulo.
@@ -138,7 +138,7 @@ Invariante testada: para todo produto, `Σ movimento.quantidade == produto.estoq
   - `CRIAR`: novo produto com a descrição informada, `embalagem = uCom`, `fator` = fator do item, `ean` = `cEAN` se livre (senão nulo), destino `REVENDA`, preço de venda 0, estoque 0. Auditoria `criar`.
   - `qtd_estoque = qtd_nota × fator`; `custo_unitario = custo_total / qtd_estoque`.
   - `preco_entrada_anterior` e `data_ult_entrada_anterior` guardados no item.
-  - `produto.preco_entrada = custo_unitario × produto.fator` (Custo, 4 casas). A embalagem e o fator do produto **nunca** são sobrescritos pela nota; o fracionado resultante é o custo por unidade de estoque da nota (último custo; divergência nº 25 da spec de arquitetura). `preco_entrada_aplicado` guarda o valor gravado.
+  - `produto.preco_entrada = custo_unitario × produto.fator` (Custo, 4 casas). A embalagem e o fator do produto **nunca** são sobrescritos pela nota; o fracionado resultante é o custo por unidade de estoque da nota (último custo; divergência nº 25 da spec de arquitetura). `preco_entrada_aplicado` guarda o valor gravado. Item com custo total zero (bonificação) soma estoque e **não** altera o preço de entrada.
   - `produto.data_ult_entrada = hoje`.
   - Movimento `ENTRADA_NF` de `+qtd_estoque` ligado ao item.
   - Grava ou atualiza o vínculo (`emitente_cnpj`, `codigo_fornecedor`) → produto, fator.
@@ -165,7 +165,7 @@ Invariante testada: para todo produto, `Σ movimento.quantidade == produto.estoq
 
 Regras comuns:
 - Dinheiro e quantidade digitados em `QLineEdit` e convertidos na borda com `core.money.para_decimal` (formato brasileiro). Nunca `QDoubleSpinBox` (float).
-- `ui/comum.py` ganha helpers de tabela (criação somente leitura com seleção por linha e preenchimento por lista de textos) usados pelas telas novas, e `formatar_qtd` (`1,5`; sem zeros à direita) e `formatar_pct` (`12,5%`).
+- `ui/comum.py` ganha helpers de tabela (criação somente leitura com seleção por linha e preenchimento por lista de textos) e `ler_decimal` (texto BR → Decimal com o nome do campo no erro). `core/money.py` ganha `formatar_qtd` (`1,5`; sem zeros à direita), `formatar_pct` (`12,5%`) e `formatar_numero` (valor para campo editável), reusáveis fora da UI (mensagens de erro).
 - Erros de domínio aparecem via `mostrar_erro`.
 
 ### 4.1 Página Estoque (`ui/estoque/`)
