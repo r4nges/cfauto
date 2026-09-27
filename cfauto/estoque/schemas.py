@@ -34,3 +34,17 @@ class LinhaMovimento:
     motivo: MotivoAjuste | None
     observacao: str | None
     nota: str | None
+
+
+@dataclass(frozen=True)
+class DadosMaterial:
+    descricao: str
+    custo_unit: Decimal
+    qtd: Decimal = Decimal(1)
+
+
+@dataclass(frozen=True)
+class DadosServico:
+    nome: str
+    materiais: tuple[DadosMaterial, ...]
+    mao_obra_pct: Decimal = Decimal(50)
