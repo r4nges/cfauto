@@ -70,3 +70,15 @@ def test_transacao_faz_rollback_em_erro(fab):
 def test_foreign_keys_ativas(fab):
     with transacao(fab) as s:
         assert s.connection().exec_driver_sql("PRAGMA foreign_keys").scalar() == 1
+
+
+def test_decimal_escalado_rejeita_float():
+    tipo = Dinheiro()
+    with pytest.raises(TypeError, match="Use Decimal, não float"):
+        tipo.process_bind_param(1.5, None)
+
+
+def test_decimal_escalado_rejeita_bool():
+    tipo = Dinheiro()
+    with pytest.raises(TypeError, match="Use Decimal, não float"):
+        tipo.process_bind_param(True, None)

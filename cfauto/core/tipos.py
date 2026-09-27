@@ -20,6 +20,8 @@ class DecimalEscalado(TypeDecorator[Decimal]):
     def process_bind_param(self, value: Any, dialect: Dialect) -> int | None:
         if value is None:
             return None
+        if isinstance(value, float | bool):
+            raise TypeError(f"Use Decimal, não float: {value!r}")
         escalado = Decimal(value) * self._fator
         return int(escalado.to_integral_value(rounding=ROUND_HALF_UP))
 
