@@ -26,3 +26,12 @@ class ConfigItem(Base):
     chave: Mapped[str] = mapped_column(String(100), primary_key=True)
     valor: Mapped[Any] = mapped_column(JSON, nullable=True)
     atualizado_em: Mapped[datetime] = mapped_column(default=_agora, onupdate=_agora)
+
+
+class Sequencia(Base):
+    """Último número emitido por sequência de código de negócio (nunca reaproveitado)."""
+
+    __tablename__ = "sequencia"
+
+    nome: Mapped[str] = mapped_column(String(40), primary_key=True)
+    ultimo: Mapped[int] = mapped_column(default=0)
