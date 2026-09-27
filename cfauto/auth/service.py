@@ -139,6 +139,9 @@ def autenticar(s: Session, login: str, senha: str) -> Ator:
         if u.tentativas_falhas >= MAX_TENTATIVAS:
             u.bloqueado_ate = agora + TEMPO_BLOQUEIO
             u.tentativas_falhas = 0
+            registrar(
+                s, None, "bloquear", "usuario", u.id, None, {"bloqueado_ate": u.bloqueado_ate}
+            )
         s.commit()  # a falha precisa persistir mesmo com a exceção abaixo
         raise CredenciaisInvalidas()
     u.tentativas_falhas = 0

@@ -80,6 +80,22 @@ def test_bloqueio_apos_cinco_falhas_persiste(fabrica, relogio):
         assert autenticar(s, "dono", "segredo1").login == "dono"
 
 
+def test_bloqueio_registra_auditoria(fabrica, relogio):
+    with transacao(fabrica) as s:
+        criar_usuario(s, None, NovoUsuario(nome="Dono", login="dono", senha="segredo1", admin=True))
+    for _ in range(5):
+        with pytest.raises(CredenciaisInvalidas), transacao(fabrica) as s:
+            autenticar(s, "dono", "errada")
+    with transacao(fabrica) as s:
+        u = s.scalar(select(Usuario).where(Usuario.login == "dono"))
+        regs = s.scalars(
+            select(AuditLog).where(
+                AuditLog.entidade == "usuario", AuditLog.entidade_id == str(u.id)
+            )
+        ).all()
+        assert [r.acao for r in regs if r.acao == "bloquear"]
+
+
 def test_sucesso_zera_falhas(fabrica, relogio):
     with transacao(fabrica) as s:
         criar_usuario(s, None, NovoUsuario(nome="Dono", login="dono", senha="segredo1", admin=True))
