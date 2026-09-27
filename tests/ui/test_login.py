@@ -39,3 +39,14 @@ def test_login_fixo_trava_campo(qtbot, fabrica, relogio):
     qtbot.addWidget(dlg)
     assert dlg.campo_login.text() == "dono"
     assert not dlg.campo_login.isEnabled()
+
+
+def test_login_vazio_mostra_erro(qtbot, fabrica, relogio):
+    dlg = DialogoLogin(fabrica)
+    qtbot.addWidget(dlg)
+    dlg.campo_login.setText("")
+    dlg.campo_senha.setText("qualquer")
+    dlg.entrar()
+    assert dlg.ator is None
+    assert dlg.rotulo_erro.text() == "Login obrigatório."
+    assert dlg.campo_senha.text() == ""

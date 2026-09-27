@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from cfauto.auth.service import autenticar
 from cfauto.core.db import transacao
-from cfauto.core.errors import CredenciaisInvalidas, UsuarioBloqueado
+from cfauto.core.errors import ErroDominio
 from cfauto.core.permissoes import Ator
 
 
@@ -57,7 +57,7 @@ class DialogoLogin(QDialog):
         try:
             with transacao(self._fabrica) as s:
                 ator = autenticar(s, self.campo_login.text(), self.campo_senha.text())
-        except (CredenciaisInvalidas, UsuarioBloqueado) as erro:
+        except ErroDominio as erro:
             self.rotulo_erro.setText(str(erro))
             self.campo_senha.clear()
             return
