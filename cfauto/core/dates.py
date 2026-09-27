@@ -1,5 +1,6 @@
 """Normalização de datas na borda (UI, importador, XML, APIs)."""
 
+from contextlib import suppress
 from datetime import date, datetime
 
 from cfauto.core.errors import DataInvalida
@@ -27,6 +28,9 @@ def para_datahora(valor: date | datetime | str) -> datetime:
                 return datetime.strptime(texto, formato)
             except ValueError:
                 continue
+        # ISO 8601 com fuso (XML da NF-e: 2026-09-20T10:15:00-03:00): vale a hora de parede.
+        with suppress(ValueError):
+            return datetime.fromisoformat(texto).replace(tzinfo=None)
     raise DataInvalida(f"Data inválida: {valor!r}")
 
 

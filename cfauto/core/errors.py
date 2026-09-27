@@ -44,3 +44,19 @@ class LicencaInvalida(ErroDominio):
 
 class LicencaExpirada(LicencaInvalida):
     pass
+
+
+class EanDuplicado(ValorInvalido):
+    pass
+
+
+class XmlInvalido(ValorInvalido):
+    pass
+
+
+class NotaJaImportada(ErroDominio):
+    pass
+
+
+class EstoqueInsuficiente(ErroDominio):
+    pass

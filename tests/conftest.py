@@ -81,3 +81,20 @@ def operador(sessao, admin):
             modulos=frozenset({Modulo.PDV, Modulo.CLIENTES}),
         ),
     )
+
+
+@pytest.fixture
+def estoquista(sessao, admin):
+    from cfauto.auth.service import NovoUsuario, criar_usuario
+    from cfauto.core.permissoes import Modulo
+
+    return criar_usuario(
+        sessao,
+        admin,
+        NovoUsuario(
+            nome="João",
+            login="joao",
+            senha="segredo3",
+            modulos=frozenset({Modulo.ESTOQUE}),
+        ),
+    )
