@@ -84,8 +84,13 @@ class JanelaPrincipal(QMainWindow):
     def titulos_navegacao(self) -> list[str]:
         return [self._navegacao.item(i).text() for i in range(self._navegacao.count())]
 
-    def _sair(self) -> None:
+    def fechar_sessao(self) -> None:
+        """Fecha a janela sem emitir `encerrar` (logout ou cancelamento do bloqueio)."""
         self._saindo = True
+        self.close()
+
+    def _sair(self) -> None:
+        self.fechar_sessao()
         self.sair.emit()
 
     def closeEvent(self, evento: QCloseEvent) -> None:  # noqa: N802 - API do Qt

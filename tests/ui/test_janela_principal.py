@@ -55,3 +55,23 @@ def test_sair_emite_sinal_sem_encerrar(qtbot, fabrica):
     with qtbot.waitSignal(janela.sair, timeout=1000):
         janela.acao_sair.trigger()
     assert encerrou == []
+
+
+def test_fechar_sessao_nao_emite_encerrar(qtbot, fabrica):
+    ator = Ator(1, "Dono", "dono", True, frozenset())
+    janela = JanelaPrincipal(fabrica, ator, _estado(100))
+    qtbot.addWidget(janela)
+    encerrou = []
+    janela.encerrar.connect(lambda: encerrou.append(True))
+    janela.fechar_sessao()
+    assert encerrou == []
+
+
+def test_fechar_pelo_x_emite_encerrar(qtbot, fabrica):
+    ator = Ator(1, "Dono", "dono", True, frozenset())
+    janela = JanelaPrincipal(fabrica, ator, _estado(100))
+    qtbot.addWidget(janela)
+    encerrou = []
+    janela.encerrar.connect(lambda: encerrou.append(True))
+    janela.close()
+    assert encerrou == [True]

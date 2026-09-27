@@ -89,7 +89,7 @@ class Aplicacao:
     def _logout(self) -> None:
         self._monitor.parar()
         if self._janela is not None:
-            self._janela.close()
+            self._janela.fechar_sessao()
             self._janela.deleteLater()
             self._janela = None
         if not self._login():
