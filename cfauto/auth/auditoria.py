@@ -32,7 +32,9 @@ def consultar(
     limite: int = 500,
 ) -> list[RegistroAuditoria]:
     exigir_admin(ator)
-    consulta = select(AuditLog, Usuario.nome).outerjoin(Usuario, AuditLog.usuario_id == Usuario.id)
+    consulta = select(AuditLog, Usuario.nome.label("usuario_nome")).outerjoin(
+        Usuario, AuditLog.usuario_id == Usuario.id
+    )
     if entidade:
         consulta = consulta.where(AuditLog.entidade == entidade)
     if usuario_id is not None:
@@ -44,13 +46,13 @@ def consultar(
     consulta = consulta.order_by(AuditLog.timestamp.desc(), AuditLog.id.desc()).limit(limite)
     return [
         RegistroAuditoria(
-            timestamp=log.timestamp,
-            usuario_nome=nome,
-            acao=log.acao,
-            entidade=log.entidade,
-            entidade_id=log.entidade_id,
-            antes=log.antes,
-            depois=log.depois,
+            timestamp=row.AuditLog.timestamp,
+            usuario_nome=row.usuario_nome,
+            acao=row.AuditLog.acao,
+            entidade=row.AuditLog.entidade,
+            entidade_id=row.AuditLog.entidade_id,
+            antes=row.AuditLog.antes,
+            depois=row.AuditLog.depois,
         )
-        for log, nome in s.execute(consulta).all()
+        for row in s.execute(consulta).all()
     ]
