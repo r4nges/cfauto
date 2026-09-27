@@ -13,13 +13,16 @@ def _estado(dias):
 
 
 def test_operador_ve_so_seus_modulos(qtbot, fabrica):
-    ator = Ator(2, "Maria", "maria", False, frozenset({Modulo.CLIENTES, Modulo.PDV}))
+    modulos = frozenset({Modulo.CLIENTES, Modulo.PDV, Modulo.CFAUTO, Modulo.USUARIOS})
+    ator = Ator(2, "Maria", "maria", False, modulos)
     janela = JanelaPrincipal(fabrica, ator, _estado(100))
     qtbot.addWidget(janela)
     assert janela.titulos_navegacao() == ["PDV / Caixa", "Clientes"]
+    assert not janela.acao_configuracoes.isVisible()
+    assert janela.titulos_configuracoes() == []
 
 
-def test_admin_ve_tudo(qtbot, fabrica):
+def test_admin_ve_modulos_na_navegacao_e_admin_em_configuracoes(qtbot, fabrica):
     ator = Ator(1, "Dono", "dono", True, frozenset())
     janela = JanelaPrincipal(fabrica, ator, _estado(100))
     qtbot.addWidget(janela)
@@ -30,10 +33,30 @@ def test_admin_ve_tudo(qtbot, fabrica):
         "Saídas",
         "Compras",
         "Histórico",
-        "CFAUTO",
-        "Usuários",
-        "Auditoria",
     ]
+    assert janela.acao_configuracoes.isVisible()
+    assert janela.titulos_configuracoes() == ["CFAUTO", "Usuários", "Auditoria", "Parâmetros"]
+
+
+def test_configuracoes_troca_pagina_e_volta_pela_navegacao(qtbot, fabrica):
+    ator = Ator(1, "Dono", "dono", True, frozenset())
+    janela = JanelaPrincipal(fabrica, ator, _estado(100))
+    qtbot.addWidget(janela)
+    janela.acao_configuracoes.trigger()
+    assert janela.pagina_atual() is janela.configuracoes
+    janela.selecionar_modulo(0)
+    assert janela.pagina_atual() is not janela.configuracoes
+
+
+def test_botao_de_menu_recolhe_e_mostra_navegacao(qtbot, fabrica):
+    ator = Ator(1, "Dono", "dono", True, frozenset())
+    janela = JanelaPrincipal(fabrica, ator, _estado(100))
+    qtbot.addWidget(janela)
+    assert janela.navegacao_visivel()
+    janela.acao_menu.trigger()
+    assert not janela.navegacao_visivel()
+    janela.acao_menu.trigger()
+    assert janela.navegacao_visivel()
 
 
 def test_aviso_de_licenca_perto_do_fim(qtbot, fabrica):

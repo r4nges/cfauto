@@ -49,3 +49,10 @@ def test_dialogo_edita_usuario(qtbot, fabrica, relogio):
     dlg.salvar()
     with transacao(fabrica) as s:
         assert autenticar(s, "maria", "segredo2").modulos == frozenset({Modulo.ESTOQUE})
+
+
+def test_dialogo_nao_oferece_modulos_so_admin(qtbot, fabrica, relogio):
+    dlg = DialogoUsuario(fabrica, _admin(fabrica))
+    qtbot.addWidget(dlg)
+    assert Modulo.CFAUTO not in dlg.caixas_modulo
+    assert Modulo.USUARIOS not in dlg.caixas_modulo

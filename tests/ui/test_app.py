@@ -35,3 +35,7 @@ def test_tratar_excecao_nao_tratada_delega_keyboard_interrupt(monkeypatch):
         tipo, valor, tb = sys.exc_info()
     tratar_excecao_nao_tratada(tipo, valor, tb)
     assert chamado == [(tipo, valor, tb)]
+
+
+def test_inatividade_padrao_e_5_minutos():
+    assert app.MINUTOS_INATIVIDADE_PADRAO == 5

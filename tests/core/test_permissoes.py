@@ -26,3 +26,11 @@ def test_exigir_admin():
     with pytest.raises(PermissaoNegada):
         exigir_admin(OPERADOR)
     exigir_admin(ADMIN)
+
+
+def test_modulos_so_admin_ignoram_lista_do_operador():
+    operador = Ator(3, "Ana", "ana", False, frozenset({Modulo.CFAUTO, Modulo.USUARIOS}))
+    assert not tem_modulo(operador, Modulo.CFAUTO)
+    assert not tem_modulo(operador, Modulo.USUARIOS)
+    with pytest.raises(PermissaoNegada):
+        exigir_modulo(operador, Modulo.CFAUTO)

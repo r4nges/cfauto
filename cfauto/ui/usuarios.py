@@ -28,10 +28,10 @@ from cfauto.auth.service import (
 )
 from cfauto.core.db import transacao
 from cfauto.core.errors import ErroDominio
-from cfauto.core.permissoes import TITULOS, Ator, Modulo
+from cfauto.core.permissoes import MODULOS_SO_ADMIN, TITULOS, Ator, Modulo
 from cfauto.ui.comum import mostrar_erro
 
-_MODULOS_EDITAVEIS = [m for m in Modulo if m is not Modulo.USUARIOS]
+_MODULOS_EDITAVEIS = [m for m in Modulo if m not in MODULOS_SO_ADMIN]
 _COLUNAS = ["Nome", "Login", "Função", "Admin", "Módulos", "Ativo"]
 
 

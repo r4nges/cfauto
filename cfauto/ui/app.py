@@ -23,7 +23,7 @@ from cfauto.ui.licenca import DialogoLicenca
 from cfauto.ui.login import DialogoLogin
 
 log = logging.getLogger("cfauto.ui")
-MINUTOS_INATIVIDADE_PADRAO = 15
+MINUTOS_INATIVIDADE_PADRAO = 5
 
 
 def tratar_excecao_nao_tratada(

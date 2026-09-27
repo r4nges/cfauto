@@ -255,8 +255,10 @@ Fornecedores cadastrados; exportar cotação em branco (.xlsx por fornecedor); i
 
 ### 6.2 Autenticação e permissões
 
-- argon2id (`argon2-cffi`). 5 tentativas falhas → bloqueio de 5 minutos. Logout manual; bloqueio de tela após inatividade (padrão 15 min).
-- Permissão: flag `admin` ou lista de módulos (PDV, ESTOQUE, CLIENTES, SAIDAS, COMPRAS, HISTORICO, CFAUTO, USUARIOS).
+- argon2id (`argon2-cffi`). 5 tentativas falhas → bloqueio de 5 minutos. Logout manual; bloqueio de tela após inatividade (padrão 5 min; `seguranca.minutos_inatividade`).
+- Permissão: flag `admin` ou lista de módulos (PDV, ESTOQUE, CLIENTES, SAIDAS, COMPRAS, HISTORICO). CFAUTO e USUARIOS são só-admin (`MODULOS_SO_ADMIN`): nunca liberados pela lista de módulos, nem na tela de usuários nem no serviço.
+- Navegação: menu lateral retrátil (botão ☰) com os módulos do usuário. Os só-admin ficam fora dele, na seção **Configurações** (botão na barra superior, visível só para admin), com abas CFAUTO, Usuários, Auditoria e Parâmetros.
+- **Parâmetros** (a detalhar): página de parametrização do sistema, hoje reservada. Candidatos: minutos de inatividade, markup padrão, taxas por forma de pagamento, capital social e lucros retidos, dias de aviso de licença.
 - Ações só-admin: cancelar venda, estornar NF-e, editar markup/preço em lote, gerenciar usuários, editar config financeira, confirmar venda com estoque insuficiente, ver auditoria.
 - Usuários importados com hash SHA-256 legado: aceito uma vez no login e regravado em argon2id.
 

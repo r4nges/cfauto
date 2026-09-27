@@ -26,6 +26,9 @@ TITULOS: dict[Modulo, str] = {
     Modulo.USUARIOS: "Usuários",
 }
 
+# Nunca liberados por lista de módulos: só o flag admin dá acesso.
+MODULOS_SO_ADMIN: frozenset[Modulo] = frozenset({Modulo.CFAUTO, Modulo.USUARIOS})
+
 
 @dataclass(frozen=True)
 class Ator:
@@ -39,6 +42,8 @@ class Ator:
 
 
 def tem_modulo(ator: Ator, modulo: Modulo) -> bool:
+    if modulo in MODULOS_SO_ADMIN:
+        return ator.admin
     return ator.admin or modulo in ator.modulos
 
 
