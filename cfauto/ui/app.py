@@ -2,8 +2,9 @@
 
 import logging
 import sys
+from types import TracebackType
 
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from cfauto.core import config
 from cfauto.core.db import transacao
@@ -15,6 +16,7 @@ from cfauto.jobs.runner import catchup
 from cfauto.licenca.service import EstadoLicenca, avaliar
 from cfauto.sistema.provisionamento import Ambiente, caminhos_padrao, fazer_backup, inicializar
 from cfauto.ui.assistente import AssistentePrimeiraExecucao
+from cfauto.ui.comum import mostrar_erro
 from cfauto.ui.inatividade import MonitorInatividade
 from cfauto.ui.janela_principal import JanelaPrincipal
 from cfauto.ui.licenca import DialogoLicenca
@@ -22,6 +24,18 @@ from cfauto.ui.login import DialogoLogin
 
 log = logging.getLogger("cfauto.ui")
 MINUTOS_INATIVIDADE_PADRAO = 15
+
+
+def tratar_excecao_nao_tratada(
+    tipo: type[BaseException], valor: BaseException, tb: TracebackType | None
+) -> None:
+    """sys.excepthook global: loga em CRITICAL e mostra a exceção se houver GUI."""
+    if issubclass(tipo, KeyboardInterrupt):
+        sys.__excepthook__(tipo, valor, tb)
+        return
+    log.critical("erro não tratado", exc_info=(tipo, valor, tb))
+    if QApplication.instance() is not None and isinstance(valor, Exception):
+        mostrar_erro(None, valor)
 
 
 class Aplicacao:
@@ -34,6 +48,7 @@ class Aplicacao:
         self._janela: JanelaPrincipal | None = None
         self._ator: Ator | None = None
         self._estado_licenca: EstadoLicenca | None = None
+        self._saiu = False
         with transacao(self._fabrica) as s:
             minutos = int(
                 config.obter(s, "seguranca.minutos_inatividade", MINUTOS_INATIVIDADE_PADRAO)
@@ -56,6 +71,7 @@ class Aplicacao:
             )
         self._agendador.iniciar()
         if not self._login():
+            self._ao_sair()
             return 0
         return self._qapp.exec()
 
@@ -99,14 +115,21 @@ class Aplicacao:
         if self._janela is None or self._ator is None:
             return
         self._janela.hide()
+        for widget in QApplication.topLevelWidgets():
+            if isinstance(widget, QDialog) and widget.isVisible():
+                widget.reject()
         dialogo = DialogoLogin(self._fabrica, login_fixo=self._ator.login)
         if dialogo.exec():
+            self._ator = dialogo.ator
             self._janela.show()
             self._monitor.reiniciar()
         else:
             self._logout()
 
     def _ao_sair(self) -> None:
+        if self._saiu:
+            return
+        self._saiu = True
         self._agendador.parar()
         try:
             fazer_backup(self._ambiente.caminhos.db, self._ambiente.caminhos.backups)
@@ -122,6 +145,7 @@ def main(argv: list[str] | None = None) -> int:
         ambiente = inicializar(caminhos)
         ambiente.engine.dispose()
         return 0
+    sys.excepthook = tratar_excecao_nao_tratada
     qapp = QApplication(sys.argv)
     qapp.setApplicationName("CFAUTO")
     qapp.setQuitOnLastWindowClosed(False)
