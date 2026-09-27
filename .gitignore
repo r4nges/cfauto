@@ -12,6 +12,7 @@ htmlcov/
 # Build
 build/
 dist/
+*.spec
 *.spec.bak
 
 # Dados locais e segredos
