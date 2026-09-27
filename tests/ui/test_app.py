@@ -1,5 +1,9 @@
 import logging
+import os
+import subprocess
 import sys
+
+import pytest
 
 from cfauto.ui import app
 from cfauto.ui.app import main, tratar_excecao_nao_tratada
@@ -39,3 +43,29 @@ def test_tratar_excecao_nao_tratada_delega_keyboard_interrupt(monkeypatch):
 
 def test_inatividade_padrao_e_5_minutos():
     assert app.MINUTOS_INATIVIDADE_PADRAO == 5
+
+
+_SCRIPT_APARENCIA = """
+import sys
+from PySide6.QtGui import QPalette
+from PySide6.QtWidgets import QApplication
+from cfauto.ui.app import configurar_aparencia
+qapp = QApplication(sys.argv)
+configurar_aparencia(qapp)
+print(qapp.palette().color(QPalette.ColorRole.WindowText).lightness())
+"""
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="esquema de cor do plugin windows")
+def test_aparencia_forca_texto_escuro_mesmo_no_modo_escuro():
+    # O plugin offscreen dos testes ignora esquema de cor; roda no plugin real do Windows.
+    env = {**os.environ, "QT_QPA_PLATFORM": "windows"}
+    saida = subprocess.run(
+        [sys.executable, "-c", _SCRIPT_APARENCIA],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=60,
+    )
+    assert int(saida.stdout.strip().splitlines()[-1]) < 128
