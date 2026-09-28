@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from cfauto.core.permissoes import MODULOS_SO_ADMIN, TITULOS, Ator, Modulo, tem_modulo
 from cfauto.licenca.service import EstadoLicenca
+from cfauto.ui.clientes.tela import TelaClientes
 from cfauto.ui.comum import PaginaEmConstrucao
 from cfauto.ui.configuracoes import PaginaConfiguracoes
 from cfauto.ui.estoque.pagina import PaginaEstoque
@@ -26,7 +27,10 @@ FONTE_NAVEGACAO_PT = 12
 
 # Módulos com tela pronta; os demais continuam "em construção".
 FabricaPagina = Callable[[sessionmaker[Session], Ator], QWidget]
-PAGINAS_DOS_MODULOS: dict[Modulo, FabricaPagina] = {Modulo.ESTOQUE: PaginaEstoque}
+PAGINAS_DOS_MODULOS: dict[Modulo, FabricaPagina] = {
+    Modulo.ESTOQUE: PaginaEstoque,
+    Modulo.CLIENTES: TelaClientes,
+}
 
 
 class JanelaPrincipal(QMainWindow):
