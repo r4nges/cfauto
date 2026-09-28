@@ -60,3 +60,11 @@ class NotaJaImportada(ErroDominio):
 
 class EstoqueInsuficiente(ErroDominio):
     pass
+
+
+class ClienteComSaldo(ErroDominio):
+    pass
+
+
+class ClienteComHistorico(ErroDominio):
+    pass
