@@ -1,4 +1,4 @@
-"""Entrada de mercadoria por XML de NF-e: conferência e confirmação."""
+"""Entrada de mercadoria por XML de NF-e: conferência, confirmação, estorno e consultas."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -9,9 +9,14 @@ from sqlalchemy.orm import Session
 
 from cfauto.core import clock, config
 from cfauto.core.audit import registrar
-from cfauto.core.errors import NotaJaImportada, ValorInvalido
-from cfauto.core.money import arredondar, arredondar_custo, arredondar_qtd
-from cfauto.core.permissoes import Ator, Modulo, exigir_modulo
+from cfauto.core.errors import (
+    EstoqueInsuficiente,
+    NotaJaImportada,
+    RegistroNaoEncontrado,
+    ValorInvalido,
+)
+from cfauto.core.money import arredondar, arredondar_custo, arredondar_qtd, formatar_qtd
+from cfauto.core.permissoes import Ator, Modulo, exigir_admin, exigir_modulo
 from cfauto.estoque.models import (
     Destino,
     NotaEntrada,
@@ -302,3 +307,116 @@ def _gravar_vinculo(s: Session, cnpj: str, codigo: str, produto: Produto, fator:
         vinculo.produto_id = produto.id
         vinculo.fator = fator
     s.flush()
+
+
+def listar_notas(s: Session, ator: Ator) -> list[NotaEntrada]:
+    exigir_modulo(ator, Modulo.ESTOQUE)
+    consulta = select(NotaEntrada).order_by(NotaEntrada.data_entrada.desc(), NotaEntrada.id.desc())
+    return list(s.scalars(consulta))
+
+
+def obter_nota(s: Session, ator: Ator, nota_id: int) -> NotaEntrada:
+    exigir_modulo(ator, Modulo.ESTOQUE)
+    return _obter_nota(s, nota_id)
+
+
+def _obter_nota(s: Session, nota_id: int) -> NotaEntrada:
+    nota = s.get(NotaEntrada, nota_id)
+    if nota is None:
+        raise RegistroNaoEncontrado("Nota de entrada não encontrada.")
+    return nota
+
+
+@dataclass(frozen=True)
+class _Lancado:
+    item: NotaEntradaItem
+    produto: Produto
+    qtd: Decimal
+
+
+def _lancados_em_ordem_inversa(nota: NotaEntrada) -> list[_Lancado]:
+    """Itens com produto, do último para o primeiro: vários itens do mesmo produto
+    restauram o preço na ordem certa."""
+    resultado = []
+    for item in sorted(nota.itens, key=lambda i: i.n_item, reverse=True):
+        if item.produto_id is None:
+            continue
+        if item.produto is None or item.qtd_estoque is None:
+            raise ValorInvalido(f"Item {item.n_item} da nota está inconsistente.")
+        resultado.append(_Lancado(item, item.produto, item.qtd_estoque))
+    return resultado
+
+
+def _checar_saldos(lancados: list[_Lancado], confirmar_negativo: bool) -> None:
+    a_estornar: dict[int, Decimal] = {}
+    produtos: dict[int, Produto] = {}
+    for lancado in lancados:
+        pid = lancado.produto.id
+        a_estornar[pid] = a_estornar.get(pid, Decimal(0)) + lancado.qtd
+        produtos[pid] = lancado.produto
+    negativos = [
+        (produtos[pid], qtd) for pid, qtd in a_estornar.items() if produtos[pid].estoque - qtd < 0
+    ]
+    if negativos and not confirmar_negativo:
+        detalhes = "; ".join(
+            f"{p.codigo} — {p.descricao}: estoque {formatar_qtd(p.estoque)}, "
+            f"estorno {formatar_qtd(qtd)}"
+            for p, qtd in negativos
+        )
+        raise EstoqueInsuficiente(f"O estorno deixará o estoque negativo: {detalhes}.")
+
+
+def _pode_restaurar(s: Session, nota: NotaEntrada, lancado: _Lancado) -> bool:
+    """Só volta o preço/data se esta nota ainda é a última palavra sobre o custo do produto."""
+    if lancado.produto.preco_entrada != lancado.item.preco_entrada_aplicado:
+        return False  # entrada posterior ou edição manual mudou o custo
+    posterior = s.scalar(
+        select(NotaEntradaItem.id)
+        .join(NotaEntrada, NotaEntradaItem.nota_id == NotaEntrada.id)
+        .where(
+            NotaEntradaItem.produto_id == lancado.produto.id,
+            NotaEntrada.estornada.is_(False),
+            NotaEntrada.id > nota.id,
+        )
+        .limit(1)
+    )
+    return posterior is None
+
+
+def estornar_entrada(
+    s: Session, ator: Ator, nota_id: int, *, confirmar_negativo: bool = False
+) -> NotaEntrada:
+    """Desfaz a nota (só admin). Nunca apaga produto; vínculos permanecem."""
+    exigir_admin(ator)
+    nota = _obter_nota(s, nota_id)
+    if nota.estornada:
+        raise ValorInvalido("Esta nota já foi estornada.")
+    lancados = _lancados_em_ordem_inversa(nota)
+    _checar_saldos(lancados, confirmar_negativo)
+    for lancado in lancados:
+        movimentar(
+            s,
+            ator,
+            lancado.produto,
+            -lancado.qtd,
+            TipoMovimento.ESTORNO_NF,
+            nota_item=lancado.item,
+        )
+        anterior = lancado.item.preco_entrada_anterior
+        if anterior is not None and _pode_restaurar(s, nota, lancado):
+            lancado.produto.preco_entrada = anterior
+            lancado.produto.data_ult_entrada = lancado.item.data_ult_entrada_anterior
+    nota.estornada = True
+    nota.estornada_em = clock.agora()
+    nota.estornada_por = ator.id
+    s.flush()
+    registrar(
+        s,
+        ator.id,
+        "estornar",
+        "nota_entrada",
+        nota.id,
+        {"estornada": False},
+        {"estornada": True, "chave": nota.chave, "itens_estornados": len(lancados)},
+    )
+    return nota
