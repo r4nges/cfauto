@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe Id="NFe31260912345678000195550010000012341123456789" versao="4.00">
+      <ide>
+        <cUF>31</cUF><cNF>12345678</cNF><natOp>VENDA</natOp><mod>55</mod><serie>1</serie>
+        <nNF>1234</nNF><dhEmi>2026-09-20T10:15:00-03:00</dhEmi><tpNF>1</tpNF><tpAmb>1</tpAmb>
+      </ide>
+      <emit><CNPJ>12345678000195</CNPJ><xNome>Distribuidora Boa Vista Ltda</xNome></emit>
+      <dest><CNPJ>98765432000110</CNPJ><xNome>Loja CFAUTO</xNome></dest>
+      <det nItem="1">
+        <prod>
+          <cProd>A-100</cProd><cEAN>7891000100103</cEAN><xProd>REFRIGERANTE COLA 2L</xProd>
+          <NCM>22021000</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>10.0000</qCom>
+          <vUnCom>7.5000000000</vUnCom><vProd>75.00</vProd><cEANTrib>7891000100103</cEANTrib>
+          <uTrib>UN</uTrib><qTrib>10.0000</qTrib><vUnTrib>7.5000000000</vUnTrib><indTot>1</indTot>
+        </prod>
+        <imposto><ICMS><ICMSSN102><orig>0</orig><CSOSN>102</CSOSN></ICMSSN102></ICMS></imposto>
+      </det>
+      <det nItem="2">
+        <prod>
+          <cProd>B-200</cProd><cEAN>SEM GTIN</cEAN><xProd>PARAFUSO SEXTAVADO 1/4 CX C/100</xProd>
+          <NCM>73181500</NCM><CFOP>5102</CFOP><uCom>CX</uCom><qCom>2.0000</qCom>
+          <vUnCom>15.0000000000</vUnCom><vProd>30.00</vProd><cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>UN</uTrib><qTrib>200.0000</qTrib><vUnTrib>0.1500000000</vUnTrib><indTot>1</indTot>
+        </prod>
+        <imposto><ICMS><ICMSSN102><orig>0</orig><CSOSN>102</CSOSN></ICMSSN102></ICMS></imposto>
+      </det>
+      <det nItem="3">
+        <prod>
+          <cProd>C-300</cProd><cEAN>7891000300305</cEAN><xProd>AGUA MINERAL 500ML FARDO C/12</xProd>
+          <NCM>22011000</NCM><CFOP>5405</CFOP><uCom>FD</uCom><qCom>3.0000</qCom>
+          <vUnCom>12.0000000000</vUnCom><vProd>36.00</vProd><cEANTrib>7891000300312</cEANTrib>
+          <uTrib>UN</uTrib><qTrib>36.0000</qTrib><vUnTrib>1.0000000000</vUnTrib>
+          <vFrete>3.00</vFrete><vSeg>0.50</vSeg><vDesc>1.50</vDesc><vOutro>0.40</vOutro>
+          <indTot>1</indTot>
+        </prod>
+        <imposto>
+          <ICMS><ICMS10><orig>0</orig><CST>10</CST><vICMSST>2.10</vICMSST><vFCPST>0.30</vFCPST></ICMS10></ICMS>
+          <IPI><cEnq>999</cEnq><IPITrib><CST>50</CST><vIPI>1.80</vIPI></IPITrib></IPI>
+        </imposto>
+      </det>
+      <total>
+        <ICMSTot>
+          <vProd>141.00</vProd><vFrete>3.00</vFrete><vSeg>0.50</vSeg><vDesc>1.50</vDesc>
+          <vIPI>1.80</vIPI><vOutro>0.40</vOutro><vST>2.10</vST><vFCPST>0.30</vFCPST><vNF>147.60</vNF>
+        </ICMSTot>
+      </total>
+    </infNFe>
+  </NFe>
+  <protNFe versao="4.00">
+    <infProt>
+      <chNFe>31260912345678000195550010000012341123456789</chNFe><cStat>100</cStat>
+      <xMotivo>Autorizado o uso da NF-e</xMotivo>
+    </infProt>
+  </protNFe>
+</nfeProc>
