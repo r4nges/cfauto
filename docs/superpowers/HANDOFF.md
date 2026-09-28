@@ -1,13 +1,22 @@
 # CFAUTO — Handoff
 
-Atualizado em 27/09/2026. Leia primeiro este arquivo; depois a spec e o plano do sub-projeto em andamento.
+Atualizado em 28/09/2026. Leia primeiro este arquivo; depois a spec e o plano do sub-projeto em andamento.
 
 ## Onde estamos
 
 - **Sub-projeto 1 — Fundação: concluído, validado manualmente e em `main`.**
   core, db + Alembic, auth + usuários, licença, provisionamento/assistente, janela principal com login e navegação, auditoria, esqueleto de jobs.
-- Suíte: 139 testes, ruff e mypy limpos (pre-commit roda os três).
-- **Próximo: sub-projeto 2 — Estoque** (produto, serviço, bens físicos, NF-e e estorno). Começar pelo brainstorming → spec detalhada → plano → implementação, numa branch `feat/estoque`.
+- **Sub-projeto 2 — Estoque: concluído (12/12 tasks via SDD) e mergeado em `main` (fast-forward, sem conflito).**
+  Produto e livro de movimentos, Serviço com materiais e preço calculado, Bens Físicos, leitura de XML de NF-e, entrada por NF-e com conferência item a item e vínculo por fornecedor, estorno só-admin com religação de cadeia de custo, e 4 telas de UI (Estoque/Produtos, Serviços, Entradas de NF-e, Bens Físicos em Configurações › CFAUTO). Review final whole-branch (opus): 1 Important corrigido (estorno fora de ordem restaurava custo de nota já estornada — corrigido e re-revisado limpo), 7 Minor deferred (não bloqueiam, ver commits/PRs de cada task pro detalhe — ledger do plano já foi removido, histórico vive no git).
+- Suíte: 306 testes, ruff e mypy limpos (pre-commit roda os três).
+- **Próximo: sub-projeto 3 — Clientes.** Começar pelo brainstorming → spec detalhada → plano → implementação, numa branch `feat/clientes`.
+
+## Débito técnico conhecido do Estoque (Minor, não bloqueante — considerar nos próximos sub-projetos)
+
+- UI cria entidades ORM temporárias pra prévia ao vivo em Produtos/Serviços (`ui/estoque/produtos.py`, `ui/estoque/servicos.py`), contrariando a regra "ui nunca usa ORM" da spec §2.2 — plan-mandated, mas vai se repetir no PDV (sub-projeto 4). Recomendado extrair cálculos de preço/fracionado pra funções puras antes de reusar o padrão lá.
+- Custo exibido em telas de estoque usa 2 casas, escondendo a precisão de 4 casas do `Custo()` — considerar `formatar_custo` com até 4 casas se precisão visual importar em telas futuras.
+- Auditoria de estorno de nota não registra a mudança de custo do produto (dá pra reconstruir pelos itens da nota, mas não fica explícito no log).
+- Falta política única de tamanho de texto entre `criar_produto` (sem validação/truncamento) e `_criar_produto` da entrada por NF-e (trunca em silêncio em 200 chars).
 
 ## Documentos
 
