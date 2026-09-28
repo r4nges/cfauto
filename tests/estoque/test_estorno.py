@@ -110,6 +110,38 @@ def test_mesmo_produto_em_dois_itens_restaura_o_original(sessao, admin):
     assert (p.preco_entrada, p.estoque) == (Decimal("60"), Decimal("5"))
 
 
+def test_estorno_fora_de_ordem_religa_a_cadeia_de_preco(sessao, admin, relogio):
+    """N1 e depois N2 entram (custo 60 -> 72 -> 84). Estornar as duas, em qualquer ordem,
+    tem que devolver o custo e a data ao valor original — nunca a um valor intermediário
+    de uma nota já estornada."""
+    p = _produto(sessao, admin)
+    data_original = p.data_ult_entrada
+    relogio.avancar(days=1)
+    n1 = _entrada(sessao, admin, 1, p, valor="144.00")  # custo 72
+    relogio.avancar(days=1)
+    n2 = _entrada(sessao, admin, 2, p, valor="168.00")  # custo 84
+    assert p.preco_entrada == Decimal("84.0000")
+
+    estornar_entrada(sessao, admin, n1.id)
+    assert p.preco_entrada == Decimal("84.0000")  # N2 ainda ativa, não mexe
+    estornar_entrada(sessao, admin, n2.id)
+    assert (p.preco_entrada, p.data_ult_entrada) == (Decimal("60"), data_original)
+
+
+def test_estorno_fora_de_ordem_religa_a_cadeia_de_preco_ordem_inversa(sessao, admin, relogio):
+    p = _produto(sessao, admin)
+    data_original = p.data_ult_entrada
+    relogio.avancar(days=1)
+    n1 = _entrada(sessao, admin, 1, p, valor="144.00")  # custo 72
+    relogio.avancar(days=1)
+    n2 = _entrada(sessao, admin, 2, p, valor="168.00")  # custo 84
+
+    estornar_entrada(sessao, admin, n2.id)
+    assert p.preco_entrada == Decimal("72.0000")  # N1 ainda ativa, volta pra ela
+    estornar_entrada(sessao, admin, n1.id)
+    assert (p.preco_entrada, p.data_ult_entrada) == (Decimal("60"), data_original)
+
+
 def test_estorno_nunca_apaga_produto_criado_pela_nota(sessao, admin):
     xml = montar_nfe(1, [ItemXml("B-200", "PARAFUSO", "2", "30.00", unidade="CX")])
     decisao = DecisaoItem(1, AcaoItem.CRIAR, fator=Decimal("100"))

@@ -366,21 +366,25 @@ def _checar_saldos(lancados: list[_Lancado], confirmar_negativo: bool) -> None:
         raise EstoqueInsuficiente(f"O estorno deixará o estoque negativo: {detalhes}.")
 
 
-def _pode_restaurar(s: Session, nota: NotaEntrada, lancado: _Lancado) -> bool:
-    """Só volta o preço/data se esta nota ainda é a última palavra sobre o custo do produto."""
-    if lancado.produto.preco_entrada != lancado.item.preco_entrada_aplicado:
-        return False  # entrada posterior ou edição manual mudou o custo
-    posterior = s.scalar(
-        select(NotaEntradaItem.id)
+def _sucessor_ativo(s: Session, nota: NotaEntrada, produto_id: int) -> NotaEntradaItem | None:
+    """Item ativo mais próximo, em nota posterior, do mesmo produto.
+
+    Não há timestamp por item de nota; o id crescente da nota é usado como proxy da ordem
+    cronológica (notas são sempre confirmadas em sequência — débito T8 já conhecido e aceito
+    no plano). Não troque esse critério sem revisar todo o encadeamento de preço anterior
+    abaixo.
+    """
+    return s.scalar(
+        select(NotaEntradaItem)
         .join(NotaEntrada, NotaEntradaItem.nota_id == NotaEntrada.id)
         .where(
-            NotaEntradaItem.produto_id == lancado.produto.id,
+            NotaEntradaItem.produto_id == produto_id,
             NotaEntrada.estornada.is_(False),
             NotaEntrada.id > nota.id,
         )
+        .order_by(NotaEntrada.id, NotaEntradaItem.n_item)
         .limit(1)
     )
-    return posterior is None
 
 
 def estornar_entrada(
@@ -402,10 +406,26 @@ def estornar_entrada(
             TipoMovimento.ESTORNO_NF,
             nota_item=lancado.item,
         )
-        anterior = lancado.item.preco_entrada_anterior
-        if anterior is not None and _pode_restaurar(s, nota, lancado):
-            lancado.produto.preco_entrada = anterior
-            lancado.produto.data_ult_entrada = lancado.item.data_ult_entrada_anterior
+        sucessor = _sucessor_ativo(s, nota, lancado.produto.id)
+        if sucessor is not None:
+            if sucessor.preco_entrada_anterior == lancado.item.preco_entrada_aplicado:
+                # Este item, que está sendo estornado, era o elo anterior do item ativo
+                # posterior (sucessor) na cadeia de preço do produto. Religa o sucessor
+                # direto ao preço/data que existiam ANTES deste item, pulando por cima
+                # dele — senão, um estorno futuro do sucessor restauraria um custo
+                # intermediário vindo de uma nota já cancelada, em vez do valor correto.
+                sucessor.preco_entrada_anterior = lancado.item.preco_entrada_anterior
+                sucessor.data_ult_entrada_anterior = lancado.item.data_ult_entrada_anterior
+        else:
+            # Nenhum item ativo posterior: só volta o preço/data se esta nota ainda é a
+            # última palavra sobre o custo do produto (senão, entrada posterior já
+            # estornada em outra ordem ou edição manual mudou o custo nesse meio-tempo).
+            anterior = lancado.item.preco_entrada_anterior
+            if anterior is not None and lancado.produto.preco_entrada == (
+                lancado.item.preco_entrada_aplicado
+            ):
+                lancado.produto.preco_entrada = anterior
+                lancado.produto.data_ult_entrada = lancado.item.data_ult_entrada_anterior
     nota.estornada = True
     nota.estornada_em = clock.agora()
     nota.estornada_por = ator.id
