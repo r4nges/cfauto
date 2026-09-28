@@ -3,8 +3,10 @@
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 
 from cfauto.estoque.models import Destino, MotivoAjuste, TipoMovimento
+from cfauto.estoque.nfe import ItemNotaLido, NotaFiscalLida
 
 
 @dataclass(frozen=True)
@@ -48,3 +50,42 @@ class DadosServico:
     nome: str
     materiais: tuple[DadosMaterial, ...]
     mao_obra_pct: Decimal = Decimal(50)
+
+
+class OrigemCasamento(StrEnum):
+    VINCULO = "VINCULO"
+    EAN = "EAN"
+    EAN_TRIB = "EAN_TRIB"
+    NENHUMA = "NENHUMA"
+
+
+class AcaoItem(StrEnum):
+    VINCULAR = "VINCULAR"
+    CRIAR = "CRIAR"
+    IGNORAR = "IGNORAR"
+
+
+@dataclass(frozen=True)
+class ItemConferencia:
+    item: ItemNotaLido
+    origem: OrigemCasamento
+    fator_sugerido: Decimal
+    produto_id: int | None = None
+    produto_codigo: str | None = None
+    produto_descricao: str | None = None
+
+
+@dataclass(frozen=True)
+class ConferenciaNota:
+    nota: NotaFiscalLida
+    itens: tuple[ItemConferencia, ...]
+    avisos: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class DecisaoItem:
+    n_item: int
+    acao: AcaoItem
+    produto_id: int | None = None  # VINCULAR
+    descricao: str | None = None  # CRIAR; None = descrição da nota
+    fator: Decimal | None = None  # VINCULAR e CRIAR
