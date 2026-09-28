@@ -29,6 +29,8 @@ from cfauto.core.errors import ErroDominio
 from cfauto.core.money import formatar_brl
 from cfauto.core.permissoes import Ator
 from cfauto.ui.clientes.dialogo_cliente import DialogoCliente
+from cfauto.ui.clientes.extrato import DialogoExtrato
+from cfauto.ui.clientes.lancamento import DialogoLancamento
 from cfauto.ui.comum import criar_tabela, mostrar_erro, preencher_tabela
 
 _COLUNAS = ["Código", "Nome", "Celular", "Saldo", "Disponível", "Situação"]
@@ -54,6 +56,10 @@ class TelaClientes(QWidget):
         novo.clicked.connect(self._novo)
         editar = QPushButton("Editar")
         editar.clicked.connect(self._editar)
+        self.botao_lancamento = QPushButton("Lançamento")
+        self.botao_lancamento.clicked.connect(self._abrir_lancamento)
+        self.botao_extrato = QPushButton("Extrato")
+        self.botao_extrato.clicked.connect(self._abrir_extrato)
         self.botao_situacao = QPushButton("Inativar")
         self.botao_situacao.clicked.connect(self.alternar_situacao)
         self.botao_excluir = QPushButton("Excluir")
@@ -66,7 +72,14 @@ class TelaClientes(QWidget):
         self.tabela.itemSelectionChanged.connect(self._atualizar_botao_situacao)
 
         self._botoes = QHBoxLayout()
-        for botao in (novo, editar, self.botao_situacao, self.botao_excluir):
+        for botao in (
+            novo,
+            editar,
+            self.botao_lancamento,
+            self.botao_extrato,
+            self.botao_situacao,
+            self.botao_excluir,
+        ):
             self._botoes.addWidget(botao)
         self._botoes.addStretch()
         self._botoes.addWidget(self.mostrar_inativos)
@@ -172,3 +185,16 @@ class TelaClientes(QWidget):
         cliente = self.selecionado()
         inativo = cliente is not None and not cliente.ativo
         self.botao_situacao.setText("Reativar" if inativo else "Inativar")
+
+    def _abrir_lancamento(self) -> None:
+        cliente = self.selecionado()
+        if (
+            cliente is not None
+            and DialogoLancamento(self._fabrica, self._ator, cliente, self).exec()
+        ):
+            self.recarregar()
+
+    def _abrir_extrato(self) -> None:
+        cliente = self.selecionado()
+        if cliente is not None:
+            DialogoExtrato(self._fabrica, self._ator, cliente.id, self).exec()
