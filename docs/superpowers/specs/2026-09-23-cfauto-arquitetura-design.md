@@ -99,7 +99,7 @@ Convenções: PK inteira autoincremento; código de negócio legível (`0001`, `
   - `preco_fracionado = preco_entrada / fator` e `margem = (preco_venda − fracionado) / preco_venda` são **calculados** (hybrid property), nunca gravados.
 - **servico**: `codigo`, `nome`, `mao_obra_pct`, `ativo`; **servico_material**: `servico_id`, `descricao`, `custo_unit`, `qtd`. Preço = Σ(custo_unit × qtd) × (1 + mao_obra_pct/100), calculado. Um único cadastro de serviço.
 - **bem_fisico**: `codigo`, `descricao`, `tipo` (MOVEL / INTANGIVEL / OUTROS), `valor`, `data_cadastro`.
-- **cliente**: `codigo`, nome, CPF, contatos, endereço, `limite` (nullable = ilimitado), `saldo_devedor` (editado manualmente), campos de juros/multa (guardados, sem efeito), `somente_titular`; **cliente_dependente** (até 4 por cliente). Aviso de duplicidade por CPF/celular; exclusão bloqueada com saldo devedor > 0.
+- **cliente**: `codigo`, nome, CPF, contatos, endereço, `limite` (nullable = ilimitado), `saldo_devedor` (mantido pelo razão `cliente_lancamento`, alterado só por `lancar()`; negativo = crédito a favor), campos de juros/multa (guardados, sem efeito), `somente_titular`, `ativo`; **cliente_dependente** (até 4 por cliente); **cliente_lancamento** (append-only: DEBITO/CREDITO, valor, `saldo_apos`, motivo, usuário). Aviso de duplicidade por CPF/celular; inativação/exclusão bloqueadas com saldo ≠ 0; exclusão só sem lançamentos. Detalhes: `docs/superpowers/specs/2026-09-28-clientes-design.md`.
 - **fornecedor**: nome, representante, contatos, condições, pedido mínimo.
 
 ### 3.2 Caixa
@@ -161,7 +161,7 @@ Idempotente (parcela ATIVADA nunca gera segunda venda).
 
 ### 4.4 Receber crediário
 
-Cria venda tipo RECEBIMENTO (descrição "RECEBIMENTO DE CONTA / FIADO") com a forma real, taxa da configuração e troco calculado. `saldo_devedor` não muda automaticamente; a tela exibe lembrete com atalho para ajuste manual (auditado).
+Cria venda tipo RECEBIMENTO (descrição "RECEBIMENTO DE CONTA / FIADO") com a forma real, taxa da configuração e troco calculado. `saldo_devedor` não muda automaticamente; a tela exibe lembrete com atalho para lançamento manual `CREDITO`/`PAGAMENTO` no razão do cliente (auditado). Se o recebimento passa a lançar sozinho é decisão do sub-projeto 4 (§9).
 
 ### 4.5 Sessão de caixa
 
@@ -361,9 +361,12 @@ Referências de linha em `referencia/analise/*.md`.
 | 33 | Compras: anti-duplicação apaga pedidos do dia do fornecedor; último preço = menor cotado; reimportar duplica bloco; venda semanal digitada | Pedido por ID; último preço = pedido real; reimportar substitui; média calculada | Bugs |
 | 34 | Proteção por `onEdit` revertendo edições | Transações + permissões + auditoria | `.md` |
 | 35 | Estoque inteiro em alguns pontos, fração em outros | `Numeric(12,3)` em todo lugar | Consistência |
+| 36 | CPF sem dígito verificador; celular ≥ 8 dígitos sem DDD | CPF validado quando informado; celular com DDD (10–11 dígitos) | Qualidade de dado |
+| 37 | Pagamento maior que a dívida perdido sem aviso | Saldo negativo = crédito a favor do cliente | Bug |
+| 38 | Saldo devedor editado direto na planilha, sem rastro | Razão `cliente_lancamento` + `saldo_apos` | Rastreabilidade |
 
 ## 9. Pendências a validar com o usuário
 
-- Saldo devedor de crediário manual (original não incrementa na venda). Revisitar após o sub-projeto 4.
+- Crediário e razão do cliente (original não incrementa a dívida na venda): o sub-projeto 4 decide se venda no crediário (`DEBITO`) e recebimento (`CREDITO`) lançam no razão automaticamente, e como o crédito a favor é usado.
 - Ordem física das colunas da aba CAIXA e se `VALOR` do Histórico é unitário ou total — confirmar com `.xlsx` reais antes do importador (sub-projeto 9).
 - Fonte do XML a partir da chave de acesso da NF-e (sub-projeto 2).
