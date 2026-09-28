@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QAction, QCloseEvent
 from PySide6.QtWidgets import (
@@ -16,10 +18,15 @@ from cfauto.core.permissoes import MODULOS_SO_ADMIN, TITULOS, Ator, Modulo, tem_
 from cfauto.licenca.service import EstadoLicenca
 from cfauto.ui.comum import PaginaEmConstrucao
 from cfauto.ui.configuracoes import PaginaConfiguracoes
+from cfauto.ui.estoque.pagina import PaginaEstoque
 
 DIAS_AVISO_LICENCA = 15
 LARGURA_NAVEGACAO = 240
 FONTE_NAVEGACAO_PT = 12
+
+# Módulos com tela pronta; os demais continuam "em construção".
+FabricaPagina = Callable[[sessionmaker[Session], Ator], QWidget]
+PAGINAS_DOS_MODULOS: dict[Modulo, FabricaPagina] = {Modulo.ESTOQUE: PaginaEstoque}
 
 
 class JanelaPrincipal(QMainWindow):
@@ -87,8 +94,15 @@ class JanelaPrincipal(QMainWindow):
     def _montar_paginas(self) -> None:
         # Módulos só-admin ficam fora da navegação, na seção Configurações.
         for modulo in Modulo:
-            if modulo not in MODULOS_SO_ADMIN and tem_modulo(self._ator, modulo):
-                self.adicionar_pagina(TITULOS[modulo], PaginaEmConstrucao(TITULOS[modulo]))
+            if modulo in MODULOS_SO_ADMIN or not tem_modulo(self._ator, modulo):
+                continue
+            criar = PAGINAS_DOS_MODULOS.get(modulo)
+            pagina = (
+                PaginaEmConstrucao(TITULOS[modulo])
+                if criar is None
+                else criar(self._fabrica, self._ator)
+            )
+            self.adicionar_pagina(TITULOS[modulo], pagina)
         if self._ator.admin:
             self.configuracoes = PaginaConfiguracoes(self._fabrica, self._ator)
             self._paginas.addWidget(self.configuracoes)
