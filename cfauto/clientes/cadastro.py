@@ -1,4 +1,4 @@
-"""Cliente: cadastro, dependentes, busca e aviso de duplicidade."""
+"""Cliente: cadastro, dependentes, busca, aviso de duplicidade, inativação e exclusão."""
 
 from decimal import Decimal
 from typing import Any
@@ -6,7 +6,13 @@ from typing import Any
 from sqlalchemy import ColumnElement, or_, select
 from sqlalchemy.orm import Session
 
-from cfauto.clientes.models import LIMITE_PADRAO, MAX_DEPENDENTES, Cliente, ClienteDependente
+from cfauto.clientes.models import (
+    LIMITE_PADRAO,
+    MAX_DEPENDENTES,
+    Cliente,
+    ClienteDependente,
+    ClienteLancamento,
+)
 from cfauto.clientes.schemas import DadosCliente, DadosDependente, FichaCliente, ResumoCliente
 from cfauto.clientes.validacao import (
     normalizar_celular,
@@ -17,9 +23,15 @@ from cfauto.clientes.validacao import (
 )
 from cfauto.core import clock
 from cfauto.core.audit import registrar
-from cfauto.core.errors import PermissaoNegada, RegistroNaoEncontrado, ValorInvalido
-from cfauto.core.money import arredondar
-from cfauto.core.permissoes import Ator, Modulo, exigir_modulo
+from cfauto.core.errors import (
+    ClienteComHistorico,
+    ClienteComSaldo,
+    PermissaoNegada,
+    RegistroNaoEncontrado,
+    ValorInvalido,
+)
+from cfauto.core.money import arredondar, formatar_brl
+from cfauto.core.permissoes import Ator, Modulo, exigir_admin, exigir_modulo
 from cfauto.core.sequencias import proximo_codigo
 from cfauto.core.texto import normalizar_texto
 
@@ -230,3 +242,54 @@ def obter_cliente(s: Session, ator: Ator, cliente_id: int) -> FichaCliente:
         disponivel=c.disponivel,
         ativo=c.ativo,
     )
+
+
+def _barrar_saldo(cliente: Cliente, acao: str) -> None:
+    saldo = cliente.saldo_devedor
+    if saldo > 0:
+        raise ClienteComSaldo(
+            f"O cliente deve {formatar_brl(saldo)}; zere o saldo antes de {acao}."
+        )
+    if saldo < 0:
+        raise ClienteComSaldo(
+            f"O cliente tem crédito a favor de {formatar_brl(-saldo)}; "
+            f"zere o saldo antes de {acao}."
+        )
+
+
+def _definir_ativo(s: Session, ator: Ator, cliente_id: int, ativo: bool, acao: str) -> None:
+    exigir_admin(ator)
+    cliente = carregar_cliente(s, cliente_id)
+    if cliente.ativo == ativo:
+        raise ValorInvalido("O cliente já está ativo." if ativo else "O cliente já está inativo.")
+    if not ativo:
+        _barrar_saldo(cliente, "inativar")
+    cliente.ativo = ativo
+    s.flush()
+    registrar(s, ator.id, acao, "cliente", cliente.id, {"ativo": not ativo}, {"ativo": ativo})
+
+
+def inativar_cliente(s: Session, ator: Ator, cliente_id: int) -> None:
+    _definir_ativo(s, ator, cliente_id, False, "inativar")
+
+
+def reativar_cliente(s: Session, ator: Ator, cliente_id: int) -> None:
+    _definir_ativo(s, ator, cliente_id, True, "reativar")
+
+
+def excluir_cliente(s: Session, ator: Ator, cliente_id: int) -> None:
+    """Só cliente sem nenhum lançamento; com histórico, o caminho é inativar."""
+    exigir_admin(ator)
+    cliente = carregar_cliente(s, cliente_id)
+    _barrar_saldo(cliente, "excluir")
+    tem_historico = s.scalar(
+        select(ClienteLancamento.id).where(ClienteLancamento.cliente_id == cliente.id).limit(1)
+    )
+    if tem_historico is not None:
+        raise ClienteComHistorico(
+            "O cliente tem lançamentos no histórico e não pode ser excluído; use Inativar."
+        )
+    antes = _snapshot(cliente)
+    s.delete(cliente)
+    s.flush()
+    registrar(s, ator.id, "excluir", "cliente", cliente_id, antes, None)
