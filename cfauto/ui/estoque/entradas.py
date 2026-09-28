@@ -417,6 +417,7 @@ class TelaEntradas(QWidget):
         self.botao_estornar.setVisible(ator.admin)
         self.tabela = criar_tabela(_COLUNAS_NOTAS)
         self.tabela.doubleClicked.connect(self._duplo_clique)
+        self.tabela.itemSelectionChanged.connect(self._atualizar_botao_estornar)
 
         botoes = QHBoxLayout()
         for botao in (importar, itens, self.botao_estornar):
@@ -431,6 +432,7 @@ class TelaEntradas(QWidget):
         with transacao(self._fabrica) as s:
             self._notas = listar_notas(s, self._ator)
         preencher_tabela(self.tabela, [_linha_nota(nota) for nota in self._notas])
+        self._atualizar_botao_estornar()
 
     def ids_na_tabela(self) -> list[int]:
         return [nota.id for nota in self._notas]
@@ -441,6 +443,10 @@ class TelaEntradas(QWidget):
     def selecionada(self) -> NotaEntrada | None:
         linha = self.tabela.currentRow()
         return self._notas[linha] if 0 <= linha < len(self._notas) else None
+
+    def _atualizar_botao_estornar(self) -> None:
+        nota = self.selecionada()
+        self.botao_estornar.setEnabled(nota is not None and not nota.estornada)
 
     def _escolher_arquivo(self) -> None:
         caminho, _filtro = QFileDialog.getOpenFileName(

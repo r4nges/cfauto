@@ -124,6 +124,19 @@ def test_estorno_cancelado_nao_muda_nada(qtbot, fabrica, relogio):
     assert tela.tabela.item(0, 5).text() == "Lançada"
 
 
+def test_botao_estornar_desabilita_para_nota_ja_estornada(qtbot, fabrica, relogio):
+    ator = _admin(fabrica)
+    nota, _produto = _nota_lancada(fabrica, ator)
+    tela = TelaEntradas(fabrica, ator)
+    qtbot.addWidget(tela)
+    assert not tela.botao_estornar.isEnabled()  # nada selecionado ainda
+    tela.selecionar(0)
+    assert tela.botao_estornar.isEnabled()
+    assert tela.estornar_nota(nota.id, lambda _texto: True)
+    tela.selecionar(0)
+    assert not tela.botao_estornar.isEnabled()
+
+
 def test_operador_de_estoque_nao_ve_estornar(qtbot, fabrica, relogio):
     admin = _admin(fabrica)
     with transacao(fabrica) as s:
