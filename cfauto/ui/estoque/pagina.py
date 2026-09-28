@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from cfauto.core.permissoes import Ator
 from cfauto.ui.estoque.produtos import TelaProdutos
+from cfauto.ui.estoque.servicos import TelaServicos
 
 
 class PaginaEstoque(QTabWidget):
@@ -14,6 +15,8 @@ class PaginaEstoque(QTabWidget):
         super().__init__(parent)
         self.produtos = TelaProdutos(fabrica, ator)
         self.addTab(self.produtos, "Produtos")
+        self.servicos = TelaServicos(fabrica, ator)
+        self.addTab(self.servicos, "Serviços")
 
     def titulos(self) -> list[str]:
         return [self.tabText(i) for i in range(self.count())]
