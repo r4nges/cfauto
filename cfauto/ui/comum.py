@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 from PySide6.QtCore import Qt
@@ -52,12 +53,27 @@ def preencher_tabela(tabela: QTableWidget, linhas: list[list[str]]) -> None:
     tabela.resizeColumnsToContents()
 
 
+_NOTACAO_CIENTIFICA = re.compile(r"[eE]")
+# Nenhum campo do app precisa de mais que 10 dígitos inteiros; acima disso o valor não cabe
+# em DecimalEscalado (coluna INTEGER do SQLite) e estouraria como OverflowError só na gravação.
+_TETO_VALOR = Decimal(10) ** 10
+
+
 def ler_decimal(texto: str, rotulo: str) -> Decimal:
-    """Texto digitado (formato brasileiro) → Decimal; o erro já traz o nome do campo."""
+    """Texto digitado (formato brasileiro) → Decimal; o erro já traz o nome do campo.
+
+    Rejeita notação científica (o formato esperado é o brasileiro, ex. "1.234,56") e valores
+    grandes demais para as colunas de dinheiro/quantidade do banco.
+    """
+    if _NOTACAO_CIENTIFICA.search(texto):
+        raise ValorInvalido(f"{rotulo}: não use notação científica.")
     try:
-        return para_decimal(texto)
+        valor = para_decimal(texto)
     except ValorInvalido as erro:
         raise ValorInvalido(f"{rotulo}: {erro}") from erro
+    if abs(valor) >= _TETO_VALOR:
+        raise ValorInvalido(f"{rotulo}: valor grande demais.")
+    return valor
 
 
 def ler_decimal_opcional(texto: str, rotulo: str) -> Decimal | None:
