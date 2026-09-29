@@ -23,7 +23,7 @@ Princípios de fidelidade (aprovados):
 | Módulo | Origem | Conteúdo |
 |---|---|---|
 | Estoque | ESTOQUE | Produto, Serviço, entrada por NF-e, estorno |
-| Clientes | CLIENTES | Cadastro, dependentes, extrato, saldo devedor (manual) |
+| Clientes | CLIENTES | Cadastro, dependentes, extrato, saldo devedor (razão; lançado pelo PDV no crediário e no recebimento) |
 | Caixa/PDV | CAIXA | Sessão, vendas, venda externa, contrato/assinatura, receber crediário, fechamento |
 | Histórico | HISTORICO | Consulta de vendas de sessões fechadas |
 | Saídas | SAÍDAS | Contas a pagar, parcelamento, empréstimo, boleto, pagamento, dashboard |
@@ -44,7 +44,6 @@ Princípios de fidelidade (aprovados):
 
 - Leitura de nota fiscal em PDF.
 - Aplicação automática de juros/multa de crediário e aumento automático de limite (campos existem, sem efeito, como no original).
-- Incremento automático do saldo devedor na venda a prazo (continua manual; validar com o usuário depois).
 - Multi-terminal / acesso remoto.
 
 ## 2. Arquitetura
@@ -105,11 +104,11 @@ Convenções: PK inteira autoincremento; código de negócio legível (`0001`, `
 ### 3.2 Caixa
 
 - **sessao_caixa**: `protocolo`, `aberta_em`, `aberta_por`, `fundo_troco`, `fechada_em`, `fechada_por`, `sangria`, `valor_mantido`, `resumo_json`, `status` (ABERTA / FECHADA). No máximo uma sessão ABERTA.
-- **venda**: `sessao_id`, `data_hora`, `usuario_id`, `cliente_id` (nullable), `tipo` (PRODUTO / SERVICO / EXTERNA / CONTRATO / RECEBIMENTO), `forma_pagamento` (DINHEIRO / PIX / DEBITO / CREDITO / CREDIARIO / EXTERNA / BOLETO / CARTAO_CONTRATO), `bruto`, `desconto`, `taxa`, `liquido`, `repasse_taxa`, `data_liquidacao` (data calculada), `cancelada`, `cancelada_por`, `cancelada_em`, `motivo_cancelamento`.
-- **venda_item**: `venda_id`, `produto_id` / `servico_id` (nullable), `descricao_snapshot`, `categoria_snapshot`, `qtd`, `preco_unit`, `subtotal`.
+- **venda**: `sessao_id`, `data_hora`, `usuario_id`, `autorizado_por` (admin que autorizou estoque insuficiente, nullable), `cliente_id` (nullable), `tipo` (VENDA / RECEBIMENTO / EXTERNA / CONTRATO — uma VENDA pode misturar produtos e serviços), `forma_pagamento` (DINHEIRO / PIX / DEBITO / CREDITO / CREDIARIO / EXTERNA / BOLETO / CARTAO_CONTRATO), `bruto`, `desconto`, `taxa`, `liquido`, `repasse_taxa`, `data_liquidacao` (data calculada; nula no crediário), `cancelada`, `cancelada_por`, `cancelamento_autorizado_por`, `cancelada_em`, `motivo_cancelamento`.
+- **venda_item**: `venda_id`, `produto_id` / `servico_id` (exatamente um, `CHECK`), `descricao_snapshot`, `categoria_snapshot`, `qtd`, `preco_unit`, `subtotal`.
 - **venda_externa_deducao**: `venda_id`, `origem`, `taxa_plataforma_pct`, `taxa_plataforma_valor`, `frete`, `desconto`, `motoboy`.
 - **contrato**: cliente, descrição, valor da parcela, nº de parcelas, forma, dia base, tolerância; **parcela_receber**: `contrato_id`, `numero`, `vencimento`, `valor`, `status` (PENDENTE / ATIVADA / CANCELADA), `venda_id` (nullable).
-- **taxa_pagamento**: `forma`, `pct`, `dias`. Valor 0 é válido. Padrões iniciais: Débito 1,5% / 7 dias; Crédito 3,5% / 7 dias; PIX 0% / 0; Dinheiro 0 / 0; Crediário 0 / — .
+- **taxa_pagamento**: `forma`, `pct`, `dias`, `repasse` (cliente paga a taxa). Valor 0 é válido. Padrões iniciais (gravados pela migração): Débito 1,5% / 7 dias; Crédito 3,5% / 7 dias; PIX 0% / 0; Dinheiro 0 / 0; todos sem repasse. Crediário fica fora da tabela (taxa sempre 0, sem liquidação).
 
 ### 3.3 Histórico
 
@@ -141,11 +140,11 @@ Não há tabela copiada. O Histórico é uma **visão/consulta** sobre `venda` d
 ### 4.1 Venda (PDV)
 
 1. Exige sessão ABERTA e módulo PDV.
-2. Itens de produto: baixa por `produto_id` na mesma transação (`estoque = estoque − qtd`). Estoque insuficiente → aviso; somente admin pode confirmar. Serviço não baixa estoque.
-3. `bruto = Σ subtotal − desconto`; `taxa = round(bruto × pct/100, 2)` (arredondamento no total da venda); `liquido = bruto − taxa`, ou `liquido = bruto` se `repasse_taxa` (valor cobrado ao cliente = bruto + taxa); `data_liquidacao = data + dias`.
-4. Crediário: taxa 0, sem troco; não altera `saldo_devedor`. Limite de crédito gera aviso (não bloqueia), como no original.
+2. Uma venda pode misturar produtos e serviços. Itens de produto: baixa por `produto_id` na mesma transação (`estoque = estoque − qtd`). Estoque insuficiente → aviso; somente admin pode confirmar (admin logado ou autorização por login + senha do admin na hora, gravada em `autorizado_por`). Serviço não baixa estoque.
+3. `bruto = Σ subtotal − desconto` (desconto em R$ ou %, gravado); `taxa = round(bruto × pct/100, 2)` (arredondamento no total da venda); `liquido = bruto − taxa`, ou `liquido = bruto` se `repasse_taxa` (valor cobrado ao cliente = bruto + taxa); `data_liquidacao = data + dias`.
+4. Crediário: taxa 0, sem troco, sem desconto; lança `DEBITO`/`VENDA_CREDIARIO` no razão do cliente na mesma transação (saldo negativo — crédito a favor — é consumido). Limite de crédito gera aviso com confirmação (não bloqueia), registrado na auditoria.
 5. **Venda externa**: `liquido = max(0, bruto − (bruto × plataforma% + frete + desconto + motoboy))`; deduções gravadas em colunas próprias; `taxa` = soma das deduções; baixa de estoque opcional se ligada a produto.
-6. **Cancelar venda**: só admin; na mesma transação estorna estoque dos itens, marca `cancelada`, registra auditoria. Nenhuma linha é apagada. Cancelar venda de parcela de contrato volta a parcela para PENDENTE.
+6. **Cancelar venda**: só admin (logado ou por senha na hora) e só com a sessão da venda ABERTA; motivo obrigatório; na mesma transação estorna estoque dos itens, estorna o razão do cliente (crediário e recebimento, motivo `CANCELAMENTO`), marca `cancelada`, registra auditoria. Nenhuma linha é apagada. Cancelar venda de parcela de contrato volta a parcela para PENDENTE.
 
 ### 4.2 Contrato/assinatura
 
@@ -161,7 +160,7 @@ Idempotente (parcela ATIVADA nunca gera segunda venda).
 
 ### 4.4 Receber crediário
 
-Cria venda tipo RECEBIMENTO (descrição "RECEBIMENTO DE CONTA / FIADO") com a forma real, taxa da configuração e troco calculado. `saldo_devedor` não muda automaticamente; a tela exibe lembrete com atalho para lançamento manual `CREDITO`/`PAGAMENTO` no razão do cliente (auditado). Se o recebimento passa a lançar sozinho é decisão do sub-projeto 4 (§9).
+Cria venda tipo RECEBIMENTO (descrição "RECEBIMENTO DE CONTA / FIADO") com a forma real, taxa da configuração e troco calculado, e lança `CREDITO`/`RECEBIMENTO` no razão do cliente na mesma transação (com `venda_id`). Valor maior que a dívida vira crédito a favor. Detalhes: `docs/superpowers/specs/2026-09-29-caixa-4a-design.md`.
 
 ### 4.5 Sessão de caixa
 
@@ -250,7 +249,7 @@ Fornecedores cadastrados; exportar cotação em branco (.xlsx por fornecedor); i
 
 - Banco em `%APPDATA%\CFAUTO\cfauto.db`.
 - Na inicialização: se o banco não existe, cria via `alembic upgrade head` (migrations embutidas no executável); se existe e há migrations pendentes, faz backup e aplica.
-- Primeira execução: wizard cria o admin, recebe a licença, dados da empresa e taxas (opcionais).
+- Primeira execução: wizard cria o admin, recebe a licença e os dados da empresa. As taxas por forma de pagamento vêm com padrões da migração e são ajustadas em Configurações › Parâmetros.
 - Backup: diário e ao fechar o app, mantendo os 7 últimos, em `%APPDATA%\CFAUTO\backups`.
 
 ### 6.2 Autenticação e permissões
@@ -258,7 +257,7 @@ Fornecedores cadastrados; exportar cotação em branco (.xlsx por fornecedor); i
 - argon2id (`argon2-cffi`). 5 tentativas falhas → bloqueio de 5 minutos. Logout manual; bloqueio de tela após inatividade (padrão 5 min; `seguranca.minutos_inatividade`).
 - Permissão: flag `admin` ou lista de módulos (PDV, ESTOQUE, CLIENTES, SAIDAS, COMPRAS, HISTORICO). CFAUTO e USUARIOS são só-admin (`MODULOS_SO_ADMIN`): nunca liberados pela lista de módulos, nem na tela de usuários nem no serviço.
 - Navegação: menu lateral retrátil (botão ☰) com os módulos do usuário. Os só-admin ficam fora dele, na seção **Configurações** (botão na barra superior, visível só para admin), com abas CFAUTO, Usuários, Auditoria e Parâmetros.
-- **Parâmetros** (a detalhar): página de parametrização do sistema, hoje reservada. Candidatos: minutos de inatividade, markup padrão, taxas por forma de pagamento, capital social e lucros retidos, dias de aviso de licença.
+- **Parâmetros**: página de parametrização do sistema. Desde o sub-projeto 4A tem as taxas por forma de pagamento (%, dias, repasse). Candidatos futuros: minutos de inatividade, markup padrão, capital social e lucros retidos, dias de aviso de licença.
 - Ações só-admin: cancelar venda, estornar NF-e, editar markup/preço em lote, gerenciar usuários, editar config financeira, confirmar venda com estoque insuficiente, ver auditoria.
 - Usuários importados com hash SHA-256 legado: aceito uma vez no login e regravado em argon2id.
 
@@ -311,7 +310,7 @@ Python 3.12, PySide6, SQLAlchemy 2.x, Alembic, APScheduler 3.x, argon2-cffi, cry
 1. **Fundação**: core, db + Alembic, auth + usuários, licença, provisionamento/wizard, janela principal com login e navegação, auditoria, esqueleto de jobs.
 2. **Estoque**: produto, serviço, bens físicos, NF-e e estorno.
 3. **Clientes**.
-4. **Caixa/PDV**: sessão, vendas, externa, contrato + parcelas, recebimento, fechamento, histórico.
+4. **Caixa/PDV**, em duas partes: **4A** sessão, vendas (produto + serviço), taxas, desconto, crediário + recebimento no razão, cancelamento, fechamento, histórico; **4B** venda externa, contrato + parcelas, job de ativação, relatório "já disponível × a cair".
 5. **Saídas**: contas, parcelamento, empréstimo, boleto, pagamento, dashboard.
 6. **CFAUTO I**: markup, DRE, balancete, indicadores.
 7. **CFAUTO II**: curva ABC, estoque mínimo, alertas, comparador.
@@ -364,9 +363,10 @@ Referências de linha em `referencia/analise/*.md`.
 | 36 | CPF sem dígito verificador; celular ≥ 8 dígitos sem DDD | CPF validado quando informado; celular com DDD (10–11 dígitos) | Qualidade de dado |
 | 37 | Pagamento maior que a dívida perdido sem aviso | Saldo negativo = crédito a favor do cliente | Bug |
 | 38 | Saldo devedor editado direto na planilha, sem rastro | Razão `cliente_lancamento` + `saldo_apos` | Rastreabilidade |
+| 39 | Venda no crediário não aumenta a dívida; recebimento abate direto na planilha | Venda no crediário lança DEBITO e recebimento lança CREDITO no razão, com `venda_id`; cancelamento estorna | Bug + decisão do usuário (4A) |
+| 40 | Protocolo `CX-yyyyMMdd-HHmm` colide com duas aberturas no mesmo minuto | Sufixo `-2`, `-3` na colisão | Bug |
 
 ## 9. Pendências a validar com o usuário
 
-- Crediário e razão do cliente (original não incrementa a dívida na venda): o sub-projeto 4 decide se venda no crediário (`DEBITO`) e recebimento (`CREDITO`) lançam no razão automaticamente, e como o crédito a favor é usado.
 - Ordem física das colunas da aba CAIXA e se `VALOR` do Histórico é unitário ou total — confirmar com `.xlsx` reais antes do importador (sub-projeto 9).
 - Fonte do XML a partir da chave de acesso da NF-e (sub-projeto 2).
