@@ -28,3 +28,6 @@ referencia/planilhas/
 .vscode/
 .idea/
 Thumbs.db
+
+# Grafo de conhecimento (gerado via /graphify, regenerável)
+graphify-out/

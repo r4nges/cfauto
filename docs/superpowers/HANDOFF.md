@@ -1,6 +1,6 @@
 # CFAUTO — Handoff
 
-Atualizado em 28/09/2026. Leia primeiro este arquivo; depois a spec e o plano do sub-projeto em andamento.
+Atualizado em 29/09/2026. Leia primeiro este arquivo; depois a spec e o plano do sub-projeto em andamento.
 
 ## Onde estamos
 
@@ -8,8 +8,8 @@ Atualizado em 28/09/2026. Leia primeiro este arquivo; depois a spec e o plano do
   core, db + Alembic, auth + usuários, licença, provisionamento/assistente, janela principal com login e navegação, auditoria, esqueleto de jobs.
 - **Sub-projeto 2 — Estoque: concluído (12/12 tasks via SDD) e mergeado em `main` (fast-forward, sem conflito).**
   Produto e livro de movimentos, Serviço com materiais e preço calculado, Bens Físicos, leitura de XML de NF-e, entrada por NF-e com conferência item a item e vínculo por fornecedor, estorno só-admin com religação de cadeia de custo, e 4 telas de UI (Estoque/Produtos, Serviços, Entradas de NF-e, Bens Físicos em Configurações › CFAUTO). Review final whole-branch (opus): 1 Important corrigido (estorno fora de ordem restaurava custo de nota já estornada — corrigido e re-revisado limpo), 7 Minor deferred (não bloqueiam, ver commits/PRs de cada task pro detalhe — ledger do plano já foi removido, histórico vive no git).
-- Suíte: 400 testes, ruff e mypy limpos (pre-commit roda os três).
-- **Sub-projeto 3 — Clientes: implementação concluída via SDD (8/8 tasks, cada uma revisada individualmente) mais uma review final whole-branch limpa** (branch `feat/clientes`, ainda não mergeada em `main`). Cadastro com dependentes, razão `cliente_lancamento` (saldo só muda por `clientes.razao.lancar`), lançamento manual débito/crédito, saldo negativo = crédito a favor, extrato com impressão (`QPrintPreviewDialog`), inativar/reativar/excluir só-admin. **Falta**: rodar o checklist de QA manual do Passo 7 da Task 8 do plano (criar cliente com dependentes, aviso de celular duplicado, creditar mais que a dívida mostra "crédito a favor", imprimir extrato — preview abre, imprime via "Microsoft Print to PDF", operador não vê Inativar/Excluir nem edita o limite) — ainda não foi executado por um humano.
+- Suíte: 403 testes, ruff e mypy limpos (pre-commit roda os três).
+- **Sub-projeto 3 — Clientes: concluído (8/8 tasks via SDD, cada uma revisada individualmente, mais review final whole-branch limpa) e mergeado em `main`** (fast-forward, sem conflito; branch `feat/clientes` já deletada). Cadastro com dependentes, razão `cliente_lancamento` (saldo só muda por `clientes.razao.lancar`), lançamento manual débito/crédito, saldo negativo = crédito a favor, extrato com impressão (`QPrintPreviewDialog`), inativar/reativar/excluir só-admin. **Falta**: rodar o checklist de QA manual do Passo 7 da Task 8 do plano (criar cliente com dependentes, aviso de celular duplicado, creditar mais que a dívida mostra "crédito a favor", imprimir extrato — preview abre, imprime via "Microsoft Print to PDF", operador não vê Inativar/Excluir nem edita o limite) — nenhum subagent tem display para rodar isso; ainda não foi executado por um humano, apesar de já estar em `main`.
 - **Próximo: sub-projeto 4 — Caixa/PDV.** Decisões pendentes que ele herda: se venda no crediário e recebimento lançam no razão automaticamente (motivos `VENDA_CREDIARIO`/`RECEBIMENTO` + coluna `venda_id`), como usar o crédito a favor, alerta de limite, observações do cliente no PDV, e se `buscar_clientes` precisa aceitar o módulo PDV.
 
 ## Débito técnico conhecido do Estoque (Minor, não bloqueante — considerar nos próximos sub-projetos)
@@ -35,6 +35,7 @@ Atualizado em 28/09/2026. Leia primeiro este arquivo; depois a spec e o plano do
 | Código original (Apps Script) e análises | `referencia/appsscript/`, `referencia/analise/*.md` |
 | Ledger da execução da Fundação (local, fora do git) | `.superpowers/sdd/2026-09-23-fundacao/progress.md` |
 | Prints da validação manual | `docs/superpowers/erros/` |
+| Grafo de conhecimento do repo (código + docs + specs), gerado via `/graphify` em 29/09/2026 — 1461 nós, 5207 arestas, 99 comunidades. Abrir `graph.html` num navegador ou perguntar direto (`/graphify query "..."`). Desatualiza a cada commit; rodar `/graphify --update` (ou refazer) antes de confiar nele pra explorar o sub-projeto 4 em diante | `graphify-out/GRAPH_REPORT.md`, `graphify-out/graph.html` (fora do git) |
 
 Ordem dos sub-projetos (spec §7.4): 1 Fundação ✔ → 2 Estoque → 3 Clientes → 4 Caixa/PDV → 5 Saídas → 6 CFAUTO I → 7 CFAUTO II → 8 Compras → 9 Importador/seed/empacotamento. ~1 semana cada; apresentação no hackathon em dezembro/2026. Demo mínima (cadastro → venda → relatório) ao fim do 6.
 
