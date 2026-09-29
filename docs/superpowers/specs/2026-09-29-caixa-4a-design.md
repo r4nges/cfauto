@@ -145,7 +145,7 @@ Todos recebem `Session` e `Ator`, verificam permissão na entrada, rodam numa tr
 
 ### 4.2 Venda (`venda.py`) — módulo PDV
 
-`registrar_venda(s, ator, dados: NovaVenda, *, autorizador: Ator | None = None, confirmar_limite: bool = False) -> int`
+`registrar_venda(s, ator, dados: NovaVenda, *, autorizador: Ator | None = None, confirmar_limite: bool = False, confirmar_estoque: bool = False) -> int`
 
 `NovaVenda`: itens (`produto_id` ou `servico_id`, `qtd`), `forma`, desconto (tipo + valor), `cliente_id` opcional.
 
@@ -153,14 +153,14 @@ Todos recebem `Session` e `Ator`, verificam permissão na entrada, rodam numa tr
 2. Carrinho não vazio; `qtd > 0`; produto/serviço existe e está ativo; cliente informado existe e está ativo. Falhas → `ValorInvalido`.
 3. CREDIARIO: exige cliente; desconto tem de ser zero.
 4. Preço unitário e descrição vêm **do banco**, nunca da UI (§2.1 `venda_item`).
-5. Estoque: soma a `qtd` do **mesmo produto repetido** no carrinho e compara com `produto.estoque`. Faltando: se `ator.admin`, ou se `autorizador` é admin, segue (estoque pode ficar negativo) e grava `autorizado_por` (o admin logado ou o autorizador); senão `EstoqueInsuficiente` com a lista de produtos e saldos. `autorizador` que não é admin → `PermissaoNegada`.
+5. Estoque: soma a `qtd` do **mesmo produto repetido** no carrinho e compara com `produto.estoque`. Faltando: `EstoqueInsuficiente` com a lista de produtos e saldos para **todos**, inclusive admin logado, até o reenvio com `confirmar_estoque=True`. Com a flag, exige um admin responsável — o admin logado ou o `autorizador` —, segue (estoque pode ficar negativo) e grava `autorizado_por`; sem admin responsável levanta `EstoqueInsuficiente` de novo. `autorizador` que não é admin → `PermissaoNegada`.
 6. Limite (CREDIARIO, cliente com `limite`): se `bruto > cliente.disponivel` e não `confirmar_limite` → `LimiteExcedido(disponivel, excesso)`.
 7. Calcula (§3), grava `venda` e `venda_item`.
 8. Produtos: `movimentar(s, ator, produto, −qtd, TipoMovimento.VENDA, observacao="Venda nº {id}", venda_item_id=...)`.
 9. CREDIARIO: `razao.lancar(s, ator, cliente, DEBITO, bruto, VENDA_CREDIARIO, "Venda nº {id}", venda_id=id)`.
 10. Auditoria `criar`/`venda` com forma, totais, itens, `autorizado_por` e, se houve, `limite_excedido: {disponivel, excesso}`.
 
-Padrão de confirmação: o serviço levanta o erro, a UI pergunta (ou pede a senha do admin) e reenvia a mesma venda com `autorizador`/`confirmar_limite`. Nada é gravado na tentativa que falha.
+Padrão de confirmação: o serviço levanta o erro, a UI pergunta (ou pede a senha do admin) e reenvia a mesma venda com `confirmar_estoque`/`autorizador`/`confirmar_limite` (as flags se acumulam entre reenvios). Nada é gravado na tentativa que falha.
 
 `vendas_da_sessao(s, ator) -> list[LinhaVenda]`: vendas da sessão aberta, mais recentes primeiro, com itens resumidos e flag de cancelada.
 
@@ -263,7 +263,7 @@ TDD com os fixtures atuais (`fabrica`, `relogio` fixo, admin e operador), banco 
 
 - **`tests/caixa/test_calculo.py`:** taxa 0; arredondamento no total; repasse × sem repasse; desconto % e R$ nos limites e fora deles; `data_liquidacao`; crediário sem liquidação; troco e recebido insuficiente; resumo com recebimentos separados, canceladas fora, gaveta e sangria.
 - **Sessão:** uma aberta (serviço e índice parcial); protocolo que colide ganha `-2`; sugestão de fundo; fechamento grava resumo/sangria e torna a sessão imutável; venda sem sessão → `SessaoFechada`; faixa do valor mantido.
-- **Venda:** carrinho misto baixa só produto; preço do banco (promocional vale); produto repetido somado na checagem; `EstoqueInsuficiente` para operador, aprovado com autorizador admin (grava `autorizado_por`), autorizador não-admin recusado; crediário exige cliente, recusa desconto e lança DEBITO com `venda_id`; `LimiteExcedido` com e sem confirmação; sem limite não avisa; crédito a favor consumido (−50 + 30 = −20).
+- **Venda:** carrinho misto baixa só produto; preço do banco (promocional vale); produto repetido somado na checagem; `EstoqueInsuficiente` para operador e para admin logado sem `confirmar_estoque`, aprovado com a flag + admin responsável (grava `autorizado_por`), autorizador não-admin recusado; crediário exige cliente, recusa desconto e lança DEBITO com `venda_id`; `LimiteExcedido` com e sem confirmação; sem limite não avisa; crédito a favor consumido (−50 + 30 = −20).
 - **Recebimento:** CREDITO no razão; excedente vira crédito a favor; taxa e repasse; cliente inativo recusado; forma CREDIARIO recusada.
 - **Cancelamento:** permissão (admin, autorizador, operador sozinho); só sessão aberta; devolve estoque; estorna razão de crediário (CREDITO) e de recebimento (DEBITO); não cancela duas vezes; auditoria.
 - **Taxas:** só admin altera; 0 aceito; auditoria.
