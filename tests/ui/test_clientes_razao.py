@@ -1,6 +1,8 @@
 from datetime import datetime
 from decimal import Decimal
 
+from PySide6.QtCore import QDate
+
 from cfauto.auth.service import NovoUsuario, criar_usuario
 from cfauto.clientes.cadastro import buscar_clientes, criar_cliente
 from cfauto.clientes.models import MotivoLancamento, TipoLancamento
@@ -8,6 +10,7 @@ from cfauto.clientes.razao import lancar_manual
 from cfauto.clientes.schemas import DadosCliente
 from cfauto.core import config
 from cfauto.core.db import transacao
+from cfauto.ui.clientes import extrato as modulo_extrato
 from cfauto.ui.clientes import lancamento as modulo_lancamento
 from cfauto.ui.clientes.extrato import DialogoExtrato
 from cfauto.ui.clientes.lancamento import DialogoLancamento
@@ -79,6 +82,16 @@ def test_lancamento_invalido_mostra_erro_e_nao_fecha(qtbot, fabrica, relogio, mo
     assert _saldo(fabrica, ator) == Decimal("0.00")
 
 
+def test_lancamento_valor_arredonda_a_zero_mostra_previa_vazia(qtbot, fabrica, relogio):
+    ator = _admin(fabrica)
+    _, resumo = _cliente(fabrica, ator)
+    dlg = DialogoLancamento(fabrica, ator, resumo)
+    qtbot.addWidget(dlg)
+    dlg.aumentar.setChecked(True)
+    dlg.valor.setText("0,004")
+    assert dlg.previa.text() == "Saldo após: —"
+
+
 def test_extrato_mostra_periodo_padrao_e_imprime(qtbot, fabrica, relogio):
     ator = _admin(fabrica)
     cid, _ = _cliente(fabrica, ator)
@@ -107,6 +120,51 @@ def test_extrato_mostra_periodo_padrao_e_imprime(qtbot, fabrica, relogio):
     dlg.imprimir()
     assert "Loja Teste" in previas[0]
     assert "Extrato do cliente" in previas[0]
+
+
+def test_extrato_imprime_periodo_atual_mesmo_sem_atualizar(qtbot, fabrica, relogio):
+    ator = _admin(fabrica)
+    cid, _ = _cliente(fabrica, ator)
+    with transacao(fabrica) as s:
+        config.definir(s, "empresa.nome", "Loja Teste")
+        relogio.definir(datetime(2026, 6, 1, 9, 0))
+        lancar_manual(
+            s, ator, cid, TipoLancamento.DEBITO, Decimal("100"), MotivoLancamento.COMPRA_ANOTADA
+        )
+        relogio.definir(datetime(2026, 9, 20, 15, 0))
+        lancar_manual(
+            s, ator, cid, TipoLancamento.CREDITO, Decimal("30"), MotivoLancamento.PAGAMENTO, "PIX"
+        )
+    relogio.definir(datetime(2026, 9, 23, 10, 0))
+    dlg = DialogoExtrato(fabrica, ator, cid)
+    qtbot.addWidget(dlg)
+    # Muda o período nos campos de data SEM clicar em "Atualizar".
+    dlg.inicio.setDate(QDate(2026, 5, 1))
+    dlg.fim.setDate(QDate(2026, 6, 15))
+    previas = []
+    dlg._abrir_previa = lambda documento: previas.append(documento.toPlainText())
+    dlg.imprimir()
+    assert len(previas) == 1
+    assert "R$ 100,00" in previas[0]
+    assert "R$ 30,00" not in previas[0]
+    assert dlg.inicio.date().toString("dd/MM/yyyy") == "01/05/2026"
+    assert dlg.fim.date().toString("dd/MM/yyyy") == "15/06/2026"
+
+
+def test_extrato_nao_imprime_quando_periodo_invalido(qtbot, fabrica, relogio, monkeypatch):
+    ator = _admin(fabrica)
+    cid, _ = _cliente(fabrica, ator)
+    dlg = DialogoExtrato(fabrica, ator, cid)
+    qtbot.addWidget(dlg)
+    erros = []
+    monkeypatch.setattr(modulo_extrato, "mostrar_erro", lambda _pai, erro: erros.append(str(erro)))
+    dlg.inicio.setDate(QDate(2026, 9, 23))
+    dlg.fim.setDate(QDate(2026, 1, 1))  # fim antes do início: recarregar() falha
+    previas = []
+    dlg._abrir_previa = lambda documento: previas.append(documento.toPlainText())
+    dlg.imprimir()
+    assert not previas
+    assert erros
 
 
 def test_tela_tem_botoes_de_lancamento_e_extrato(qtbot, fabrica, relogio):

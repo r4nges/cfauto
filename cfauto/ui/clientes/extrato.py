@@ -91,6 +91,7 @@ class DialogoExtrato(QDialog):
                 self._extrato = extrato(s, self._ator, self._cliente_id, inicio, fim)
                 self._loja = str(config.obter(s, "empresa.nome", "") or "")
         except ErroDominio as erro:
+            self._extrato = None
             mostrar_erro(self, erro)
             return
         dados = self._extrato
@@ -118,6 +119,7 @@ class DialogoExtrato(QDialog):
         return gerar_html_extrato(self._extrato, self._loja, clock.agora())
 
     def imprimir(self) -> None:
+        self.recarregar()
         if self._extrato is None:
             return
         documento = QTextDocument(self)

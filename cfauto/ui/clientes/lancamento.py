@@ -87,6 +87,10 @@ class DialogoLancamento(QDialog):
             # Valor incompleto enquanto o usuário digita: sem prévia; o erro vem ao salvar.
             self.previa.setText("Saldo após: —")
             return
+        if valor <= 0:
+            # Arredonda a zero ou menos: `lancar` vai rejeitar; não mostrar prévia enganosa.
+            self.previa.setText("Saldo após: —")
+            return
         novo = saldo_apos(self._cliente.saldo_devedor, self.tipo(), valor)
         self.previa.setText(f"Saldo após: {formatar_saldo(novo)}")
 

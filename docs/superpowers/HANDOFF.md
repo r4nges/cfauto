@@ -9,48 +9,8 @@ Atualizado em 28/09/2026. Leia primeiro este arquivo; depois a spec e o plano do
 - **Sub-projeto 2 — Estoque: concluído (12/12 tasks via SDD) e mergeado em `main` (fast-forward, sem conflito).**
   Produto e livro de movimentos, Serviço com materiais e preço calculado, Bens Físicos, leitura de XML de NF-e, entrada por NF-e com conferência item a item e vínculo por fornecedor, estorno só-admin com religação de cadeia de custo, e 4 telas de UI (Estoque/Produtos, Serviços, Entradas de NF-e, Bens Físicos em Configurações › CFAUTO). Review final whole-branch (opus): 1 Important corrigido (estorno fora de ordem restaurava custo de nota já estornada — corrigido e re-revisado limpo), 7 Minor deferred (não bloqueiam, ver commits/PRs de cada task pro detalhe — ledger do plano já foi removido, histórico vive no git).
 - Suíte: 400 testes, ruff e mypy limpos (pre-commit roda os três).
-- **Sub-projeto 3 — Clientes: concluído** (branch `feat/clientes`). Cadastro com dependentes, razão `cliente_lancamento` (saldo só muda por `clientes.razao.lancar`), lançamento manual débito/crédito, saldo negativo = crédito a favor, extrato com impressão (`QPrintPreviewDialog`), inativar/reativar/excluir só-admin.
+- **Sub-projeto 3 — Clientes: implementação concluída via SDD (8/8 tasks, cada uma revisada individualmente) mais uma review final whole-branch limpa** (branch `feat/clientes`, ainda não mergeada em `main`). Cadastro com dependentes, razão `cliente_lancamento` (saldo só muda por `clientes.razao.lancar`), lançamento manual débito/crédito, saldo negativo = crédito a favor, extrato com impressão (`QPrintPreviewDialog`), inativar/reativar/excluir só-admin. **Falta**: rodar o checklist de QA manual do Passo 7 da Task 8 do plano (criar cliente com dependentes, aviso de celular duplicado, creditar mais que a dívida mostra "crédito a favor", imprimir extrato — preview abre, imprime via "Microsoft Print to PDF", operador não vê Inativar/Excluir nem edita o limite) — ainda não foi executado por um humano.
 - **Próximo: sub-projeto 4 — Caixa/PDV.** Decisões pendentes que ele herda: se venda no crediário e recebimento lançam no razão automaticamente (motivos `VENDA_CREDIARIO`/`RECEBIMENTO` + coluna `venda_id`), como usar o crédito a favor, alerta de limite, observações do cliente no PDV, e se `buscar_clientes` precisa aceitar o módulo PDV.
-
-### Resumo do plano do sub-projeto 3 (Clientes)
-
-1. **Modelo + migração `0003_clientes` + erros.** `cfauto/clientes/models.py`: enums `Sexo` (M/F/OUTRO), `FrequenciaJuros` (DIARIO/MENSAL/BIMESTRAL), `TipoLancamento` (DEBITO/CREDITO), `MotivoLancamento` (COMPRA_ANOTADA/PAGAMENTO/CORRECAO/OUTRO) + dicts `TITULOS_*`; `LIMITE_PADRAO = Decimal("500.00")`, `MAX_DEPENDENTES = 4`; `Cliente` (spec §2.1; `index=True` em `nome_busca`, `celular`, `cpf`; `dependentes` com cascade delete-orphan, lazy selectin, ordenado por id; property `disponivel`), `ClienteDependente`, `ClienteLancamento` com `Index("ix_cliente_lancamento_cliente_data", "cliente_id", "data_hora")`. Migração no estilo da 0002 (Decimal → `sa.Integer`, enum → `sa.String(20)`, nomes pela `CONVENCAO_NOMES`). Registrar em `cfauto/modelos.py`. Erros `ClienteComSaldo` e `ClienteComHistorico` (`ErroDominio`). O teste `test_modelos_batem_com_migracoes` já cobre a migração.
-2. **`clientes/validacao.py`** (funções puras): `so_digitos`; `normalizar_nome` ("Informe nome e sobrenome."); `normalizar_celular` (vazio → "Celular obrigatório."; tira o prefixo 55 quando há 12–13 dígitos; fora de 10–11 dígitos → "Celular deve ter DDD + número (10 ou 11 dígitos)."; DDD < 11 → "DDD inválido."); `cpf_valido` e `normalizar_cpf` (vazio ou só " .-" → None; senão "CPF inválido."); `normalizar_email` ("E-mail inválido."); `formatar_celular`, `formatar_cpf`, `formatar_saldo` (negativo → "Crédito a favor R$ X"). CPFs de teste: válidos 529.982.247-25 e 111.444.777-35; inválido 529.982.247-26.
-3. **`schemas.py` + `cadastro.py`.** Schemas: `DadosDependente(nome, parentesco="")`; `DadosCliente` (todos os campos, `limite=LIMITE_PADRAO`, `dependentes: tuple`); `ResumoCliente(id, codigo, nome, celular, cpf, saldo_devedor, limite, disponivel, ativo)`; `FichaCliente(id, codigo, dados, saldo_devedor, disponivel, ativo)`; `LinhaLancamento(id, data_hora, tipo, valor, saldo_apos, motivo, observacao, usuario)`; `Extrato(cliente, inicio, fim, saldo_anterior, linhas, saldo_final)`. Funções:
-   - `criar_cliente` → int; `editar_cliente`.
-   - `verificar_duplicados(s, ator, dados, ignorar_id=None)`: valida `dados` antes de procurar.
-   - `buscar_clientes(s, ator, texto, *, incluir_inativos=False)`: `contains(..., autoescape=True)`; com ≥ 3 dígitos, casa também CPF/celular.
-   - `obter_cliente` → `FichaCliente`; `carregar_cliente` (entidade ORM, usada pelo razão); `resumo_cliente`.
-   - Não-admin criando com limite ≠ padrão, ou alterando o limite numa edição → `PermissaoNegada("Só administradores alteram o limite de crédito.")`.
-   - Auditoria: `registrar(s, ator.id, "criar"|"alterar", "cliente", id, antes, depois)` (o código usa ação e entidade separadas, não "cliente.criar").
-   - Tamanhos de texto validados com `ValorInvalido`.
-4. **`razao.py`**:
-   - `saldo_apos(saldo, tipo, valor)`: função pura.
-   - `lancar`: porta única. Valor arredondado ≤ 0 → "O valor do lançamento deve ser maior que zero."; CORRECAO sem observação → erro. Audita com a ação "lancamento".
-   - `lancar_manual` → `LinhaLancamento`: exige o módulo CLIENTES; cliente inativo → "Cliente inativo: reative antes de lançar."
-   - `extrato(s, ator, cliente_id, inicio, fim)`: fim < início → erro; join com `Usuario.nome.label("usuario")`; período [início 00:00, fim + 1 dia 00:00).
-5. **Inativar/reativar/excluir** em `cadastro.py`:
-   - Todas exigem admin (`exigir_admin`).
-   - Saldo ≠ 0 → `ClienteComSaldo` ("O cliente deve R$ X; zere o saldo antes de inativar." ou "tem crédito a favor de R$ X").
-   - Excluir cliente com lançamentos → `ClienteComHistorico` ("... use Inativar.").
-   - Código de cliente nunca reaproveitado.
-6. **`extrato_html.py`**: `descrever_lancamento(linha)`; `gerar_html_extrato(extrato, loja, emitido_em)` com `html.escape`; período vazio → "Nenhum lançamento no período."; nome da loja vem de `config.obter(s, "empresa.nome", "")`.
-7. **UI de cadastro** (`cfauto/ui/clientes/`: `dialogo_cliente.py`, `tela.py`):
-   - `TelaClientes`: busca, "mostrar inativos", Novo/Editar. Os botões `botao_situacao` e `botao_excluir` ficam ocultos para não-admin. Exclusão por `excluir_selecionado(confirmar)`.
-   - `DialogoCliente(fabrica, ator, ficha=None)`:
-     - Celular e CPF sem `inputMask`: reformatar no `editingFinished`.
-     - Nascimento em `QLineEdit` (dd/mm/aaaa), lido com `dates.para_data`.
-     - Limite e "sem limite" desabilitados para não-admin; 4 linhas de dependente.
-     - `salvar(confirmar=None)`: por padrão pergunta com `_perguntar`, como em `ui/estoque/entradas.py:486`.
-   - Registrar `Modulo.CLIENTES: TelaClientes` em `PAGINAS_DOS_MODULOS` (`ui/janela_principal.py:29`).
-8. **UI do razão**:
-   - `ui/clientes/lancamento.py`: `DialogoLancamento(fabrica, ator, resumo)` com prévia "Saldo após: …" (ou "—" quando o valor é inválido).
-   - `ui/clientes/extrato.py`: `DialogoExtrato`, período padrão = últimos 90 dias. `imprimir()` chama `_abrir_previa(doc)`, que abre `QPrintPreviewDialog` e imprime com `doc.print_`; nos testes, monkeypatch de `_abrir_previa`.
-   - Botões Lançamento/Extrato na tela; por fim, atualizar este HANDOFF.
-
-Review Focus do plano: (1) celular "+55 (11) 98765-4321" → 11 dígitos; (2) busca por "%" ou "_" não lista todo mundo; (3) valor 0,004 arredonda a zero → rejeitado; (4) lançamentos às 00:00 do dia inicial e às 23:59:59 do dia final entram no extrato; (5) operador edita cliente sem limite (`limite` None) sem ser barrado.
-
-Fixtures úteis (`tests/conftest.py`): `sessao`, `admin`, `operador` (PDV + CLIENTES, nome "Maria"), `estoquista` (sem CLIENTES), `relogio` (2026-09-23 10:00). Na UI, `QMessageBox` trava o teste offscreen: fazer monkeypatch de `mostrar_erro` e passar `confirmar=` nos métodos.
 
 ## Débito técnico conhecido do Estoque (Minor, não bloqueante — considerar nos próximos sub-projetos)
 
@@ -58,6 +18,12 @@ Fixtures úteis (`tests/conftest.py`): `sessao`, `admin`, `operador` (PDV + CLIE
 - Custo exibido em telas de estoque usa 2 casas, escondendo a precisão de 4 casas do `Custo()` — considerar `formatar_custo` com até 4 casas se precisão visual importar em telas futuras.
 - Auditoria de estorno de nota não registra a mudança de custo do produto (dá pra reconstruir pelos itens da nota, mas não fica explícito no log).
 - Falta política única de tamanho de texto entre `criar_produto` (sem validação/truncamento) e `_criar_produto` da entrada por NF-e (trunca em silêncio em 200 chars).
+
+## Débito técnico conhecido do Clientes (Minor, não bloqueante — considerar nos próximos sub-projetos)
+
+- `razao.lancar` não tem lock de linha sobre `saldo_devedor` (lê e escreve na mesma transação, sem trava). Adiado de propósito: CFAUTO é um processo desktop SQLite único; multiusuário significa múltiplos logins na mesma máquina, não processos concorrentes do SO. `with_for_update()` é um no-op no SQLite; se algum dia for preciso, usar `BEGIN IMMEDIATE` na transação. Espelha o mesmo padrão de `estoque.movimentos.movimentar`.
+- O sub-projeto 4 vai adicionar membros de `MotivoLancamento` (`VENDA_CREDIARIO`, `RECEBIMENTO`) para lançamentos automáticos de venda/recebimento. Quando isso acontecer: o diálogo de lançamento manual em `cfauto/ui/clientes/lancamento.py` hoje lista todos os membros de `MotivoLancamento` e `razao.lancar_manual` aceita qualquer um deles — um operador poderia criar à mão um lançamento "Venda no crediário" sem `venda_id`. Recomendado um subconjunto `MOTIVOS_MANUAIS` (excluindo os motivos futuros só-de-venda/pagamento) compartilhado pelo diálogo e por `lancar_manual`. Além disso, `descrever_lancamento` em `extrato_html.py` indexa `TITULOS_MOTIVO_LANCAMENTO` diretamente pelo motivo — um motivo novo sem entrada correspondente gera `KeyError` ao imprimir um extrato; todo novo membro de `MotivoLancamento` precisa da entrada em `TITULOS_MOTIVO_LANCAMENTO` na mesma mudança.
+- Excluir um cliente que tenha vendas num módulo futuro (vendas não estão nesta branch) mas nenhuma linha em `cliente_lancamento` hoje bateria na constraint de chave estrangeira do banco (`PRAGMA foreign_keys=ON`) e levantaria `IntegrityError`, capturado pelo hook global de exceção do app em vez de um erro de domínio limpo. O sub-projeto 4/5 deve decidir se "tem vendas" precisa de sua própria guarda em `excluir_cliente`, similar a `ClienteComHistorico`.
 
 ## Documentos
 
@@ -86,7 +52,7 @@ Recuperação anti-rollback da licença via data de emissão, filtro por usuári
 ## Pendências a validar com o usuário (spec §9)
 
 - Fonte do XML a partir da chave de acesso da NF-e — **primeira pergunta do sub-projeto 2**.
-- Saldo devedor de crediário manual — revisitar após o sub-projeto 4.
+- Saldo devedor de crediário manual — resolvido no sub-projeto 3 (razão `cliente_lancamento`, ver spec §9 atualizada).
 - Ordem das colunas da aba CAIXA e se `VALOR` do Histórico é unitário ou total — antes do importador (sub-projeto 9).
 
 ## Como rodar
