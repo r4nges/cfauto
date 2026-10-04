@@ -1,6 +1,7 @@
 """Exceções de domínio. A mensagem de cada uma é exibível ao usuário."""
 
 from datetime import datetime
+from decimal import Decimal
 
 
 class ErroDominio(Exception):
@@ -59,7 +60,10 @@ class NotaJaImportada(ErroDominio):
 
 
 class EstoqueInsuficiente(ErroDominio):
-    pass
+    def __init__(self, mensagem: str, faltas: tuple[str, ...] = ()) -> None:
+        super().__init__(mensagem)
+        # Uma linha por produto em falta, ex.: "0001 Óleo 5W30: estoque 1, pedido 3".
+        self.faltas = faltas
 
 
 class ClienteComSaldo(ErroDominio):
@@ -68,3 +72,20 @@ class ClienteComSaldo(ErroDominio):
 
 class ClienteComHistorico(ErroDominio):
     pass
+
+
+class SessaoFechada(ErroDominio):
+    pass
+
+
+class SessaoJaAberta(ErroDominio):
+    pass
+
+
+class LimiteExcedido(ErroDominio):
+    """A mensagem já vem formatada por quem levanta (este módulo não importa core.money)."""
+
+    def __init__(self, mensagem: str, disponivel: Decimal, excesso: Decimal) -> None:
+        super().__init__(mensagem)
+        self.disponivel = disponivel
+        self.excesso = excesso

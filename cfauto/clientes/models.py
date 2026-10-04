@@ -46,14 +46,30 @@ class MotivoLancamento(StrEnum):
     PAGAMENTO = "PAGAMENTO"
     CORRECAO = "CORRECAO"
     OUTRO = "OUTRO"
+    # Só lançados pelo caixa, sempre com venda_id.
+    VENDA_CREDIARIO = "VENDA_CREDIARIO"
+    RECEBIMENTO = "RECEBIMENTO"
+    CANCELAMENTO = "CANCELAMENTO"
 
 
+# Todo motivo precisa de título: o extrato impresso indexa por ele.
 TITULOS_MOTIVO_LANCAMENTO: dict[MotivoLancamento, str] = {
     MotivoLancamento.COMPRA_ANOTADA: "Compra anotada",
     MotivoLancamento.PAGAMENTO: "Pagamento",
     MotivoLancamento.CORRECAO: "Correção",
     MotivoLancamento.OUTRO: "Outro",
+    MotivoLancamento.VENDA_CREDIARIO: "Venda no crediário",
+    MotivoLancamento.RECEBIMENTO: "Recebimento",
+    MotivoLancamento.CANCELAMENTO: "Cancelamento de venda/recebimento",
 }
+
+# Os que o operador pode escolher no lançamento manual.
+MOTIVOS_MANUAIS: tuple[MotivoLancamento, ...] = (
+    MotivoLancamento.COMPRA_ANOTADA,
+    MotivoLancamento.PAGAMENTO,
+    MotivoLancamento.CORRECAO,
+    MotivoLancamento.OUTRO,
+)
 
 
 class Cliente(ComTimestamps, Base):
@@ -123,3 +139,5 @@ class ClienteLancamento(ComTimestamps, Base):
     motivo: Mapped[MotivoLancamento] = mapped_column(EnumTexto(MotivoLancamento))
     observacao: Mapped[str] = mapped_column(String(200), default="")
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuario.id"))
+    # Preenchido nos lançamentos automáticos do caixa (venda no crediário, recebimento, estorno).
+    venda_id: Mapped[int | None] = mapped_column(ForeignKey("venda.id"), index=True)

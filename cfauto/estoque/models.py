@@ -209,6 +209,7 @@ class MovimentoEstoque(ComTimestamps, Base):
     motivo: Mapped[MotivoAjuste | None] = mapped_column(EnumTexto(MotivoAjuste))
     observacao: Mapped[str | None] = mapped_column(String(200))
     nota_entrada_item_id: Mapped[int | None] = mapped_column(ForeignKey("nota_entrada_item.id"))
+    venda_item_id: Mapped[int | None] = mapped_column(ForeignKey("venda_item.id"))
 
 
 class VinculoFornecedorProduto(ComTimestamps, Base):
