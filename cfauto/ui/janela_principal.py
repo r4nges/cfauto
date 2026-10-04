@@ -16,10 +16,12 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from cfauto.core.permissoes import MODULOS_SO_ADMIN, TITULOS, Ator, Modulo, tem_modulo
 from cfauto.licenca.service import EstadoLicenca
+from cfauto.ui.caixa.pagina import PaginaCaixa
 from cfauto.ui.clientes.tela import TelaClientes
 from cfauto.ui.comum import PaginaEmConstrucao
 from cfauto.ui.configuracoes import PaginaConfiguracoes
 from cfauto.ui.estoque.pagina import PaginaEstoque
+from cfauto.ui.historico.tela import TelaHistorico
 
 DIAS_AVISO_LICENCA = 15
 LARGURA_NAVEGACAO = 240
@@ -28,8 +30,10 @@ FONTE_NAVEGACAO_PT = 12
 # Módulos com tela pronta; os demais continuam "em construção".
 FabricaPagina = Callable[[sessionmaker[Session], Ator], QWidget]
 PAGINAS_DOS_MODULOS: dict[Modulo, FabricaPagina] = {
+    Modulo.PDV: PaginaCaixa,
     Modulo.ESTOQUE: PaginaEstoque,
     Modulo.CLIENTES: TelaClientes,
+    Modulo.HISTORICO: TelaHistorico,
 }
 
 
@@ -129,8 +133,14 @@ class JanelaPrincipal(QMainWindow):
         self._navegacao.setCurrentRow(linha)
 
     def _ao_trocar_linha(self, linha: int) -> None:
-        if linha >= 0:
-            self._paginas.setCurrentIndex(linha)
+        if linha < 0:
+            return
+        self._paginas.setCurrentIndex(linha)
+        # As páginas são montadas uma vez; ao voltar a elas mostram o que os outros módulos
+        # gravaram (vendas e sessões no Histórico, saldo no Clientes, taxas no PDV).
+        recarregar = getattr(self._paginas.widget(linha), "recarregar", None)
+        if callable(recarregar):
+            recarregar()
 
     def mostrar_configuracoes(self) -> None:
         if self.configuracoes is None:
