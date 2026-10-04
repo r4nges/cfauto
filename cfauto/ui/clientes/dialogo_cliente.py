@@ -10,13 +10,16 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPlainTextEdit,
+    QScrollArea,
     QSpinBox,
+    QStyle,
     QVBoxLayout,
     QWidget,
 )
@@ -163,15 +166,33 @@ class DialogoCliente(QDialog):
         grupo_juros = QGroupBox("Juros e aumento automático (guardados para uso futuro)")
         grupo_juros.setLayout(form_juros)
 
-        botoes = QDialogButtonBox(
+        self.botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
-        botoes.accepted.connect(self._salvar_pelo_botao)
-        botoes.rejected.connect(self.reject)
-        layout = QVBoxLayout(self)
+        self.botoes.accepted.connect(self._salvar_pelo_botao)
+        self.botoes.rejected.connect(self.reject)
+        # O formulário é mais alto que muitas telas: rola, e Salvar/Cancelar ficam sempre à vista.
+        conteudo = QWidget()
+        corpo = QVBoxLayout(conteudo)
         for grupo in (grupo_dados, grupo_credito, grupo_dependentes, grupo_juros):
-            layout.addWidget(grupo)
-        layout.addWidget(botoes)
+            corpo.addWidget(grupo)
+        self.rolagem = QScrollArea()
+        self.rolagem.setWidgetResizable(True)
+        self.rolagem.setFrameShape(QFrame.Shape.NoFrame)
+        self.rolagem.setWidget(conteudo)
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.rolagem)
+        layout.addWidget(self.botoes)
+        self._ajustar_tamanho(conteudo)
+
+    def _ajustar_tamanho(self, conteudo: QWidget) -> None:
+        """Abre no tamanho do formulário, limitado a 90% da área útil da tela."""
+        util = self.screen().availableGeometry()
+        barra = self.style().pixelMetric(QStyle.PixelMetric.PM_ScrollBarExtent)
+        ideal = conteudo.sizeHint()
+        largura = ideal.width() + barra + 40
+        altura = ideal.height() + self.botoes.sizeHint().height() + 40
+        self.resize(min(largura, util.width()), min(altura, int(util.height() * 0.9)))
 
     def _ao_mudar_sem_limite(self, marcado: bool) -> None:
         self.limite.setEnabled(self._ator.admin and not marcado)

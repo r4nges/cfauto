@@ -122,6 +122,17 @@ def test_duplicado_pergunta_e_cancelar_nao_salva(qtbot, fabrica, relogio):
     assert tela.codigos_na_tabela() == ["CLI-0001", "CLI-0002"]
 
 
+def test_dialogo_cabe_na_tela_e_rola_com_botoes_fixos(qtbot, fabrica, relogio):
+    admin, _ = _atores(fabrica)
+    dlg = DialogoCliente(fabrica, admin)
+    qtbot.addWidget(dlg)
+    dlg.show()
+    assert dlg.height() <= dlg.screen().availableGeometry().height()
+    assert dlg.rolagem.widget().isAncestorOf(dlg.nome)
+    assert dlg.rolagem.widget().isAncestorOf(dlg.juros_pct)
+    assert not dlg.rolagem.isAncestorOf(dlg.botoes)
+
+
 def test_somente_titular_limpa_dependentes(qtbot, fabrica, relogio):
     admin, _ = _atores(fabrica)
     dlg = DialogoCliente(fabrica, admin)
