@@ -27,6 +27,7 @@ def movimentar(
     motivo: MotivoAjuste | None = None,
     observacao: str | None = None,
     nota_item: NotaEntradaItem | None = None,
+    venda_item_id: int | None = None,
 ) -> MovimentoEstoque:
     """Soma `quantidade` (com sinal) ao estoque. Não checa permissão nem saldo negativo:
     quem chama decide."""
@@ -44,6 +45,7 @@ def movimentar(
         motivo=motivo,
         observacao=observacao,
         nota_entrada_item_id=None if nota_item is None else nota_item.id,
+        venda_item_id=venda_item_id,
     )
     s.add(movimento)
     s.flush()

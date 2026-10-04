@@ -11,6 +11,7 @@ from cfauto.auth.service import (
     alterar_senha,
     atualizar_usuario,
     autenticar,
+    autorizar_admin,
     criar_usuario,
     existe_usuario,
     listar_usuarios,
@@ -187,3 +188,15 @@ def test_auditoria_sem_senha(sessao, admin, operador):
         assert "senha" not in r.depois
         assert "senha_hash" not in r.depois
     assert regs[1].depois["modulos"] == ["CLIENTES", "PDV"]
+
+
+def test_autorizar_admin_devolve_o_admin(sessao, admin, operador):
+    assert autorizar_admin(sessao, "dono", "segredo1").id == admin.id
+    with pytest.raises(PermissaoNegada, match="não é administrador"):
+        autorizar_admin(sessao, "maria", "segredo2")
+
+
+def test_autorizar_admin_senha_errada_conta_tentativa(sessao, admin):
+    with pytest.raises(CredenciaisInvalidas):
+        autorizar_admin(sessao, "dono", "errada")
+    assert sessao.get(Usuario, admin.id).tentativas_falhas == 1

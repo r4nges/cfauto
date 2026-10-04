@@ -5,7 +5,7 @@ from PySide6.QtCore import QDate
 
 from cfauto.auth.service import NovoUsuario, criar_usuario
 from cfauto.clientes.cadastro import buscar_clientes, criar_cliente
-from cfauto.clientes.models import MotivoLancamento, TipoLancamento
+from cfauto.clientes.models import MOTIVOS_MANUAIS, MotivoLancamento, TipoLancamento
 from cfauto.clientes.razao import lancar_manual
 from cfauto.clientes.schemas import DadosCliente
 from cfauto.core import config
@@ -76,7 +76,7 @@ def test_lancamento_invalido_mostra_erro_e_nao_fecha(qtbot, fabrica, relogio, mo
     assert dlg.result() == 0
     assert erros[0].startswith("Valor")
     dlg.valor.setText("10")
-    dlg.motivo.setCurrentIndex(list(MotivoLancamento).index(MotivoLancamento.CORRECAO))
+    dlg.motivo.setCurrentIndex(MOTIVOS_MANUAIS.index(MotivoLancamento.CORRECAO))
     dlg.salvar()
     assert "correção" in erros[1]
     assert _saldo(fabrica, ator) == Decimal("0.00")
@@ -90,6 +90,15 @@ def test_lancamento_valor_arredonda_a_zero_mostra_previa_vazia(qtbot, fabrica, r
     dlg.aumentar.setChecked(True)
     dlg.valor.setText("0,004")
     assert dlg.previa.text() == "Saldo após: —"
+
+
+def test_lancamento_so_lista_motivos_manuais(qtbot, fabrica, relogio):
+    ator = _admin(fabrica)
+    _, resumo = _cliente(fabrica, ator)
+    dlg = DialogoLancamento(fabrica, ator, resumo)
+    qtbot.addWidget(dlg)
+    motivos = [dlg.motivo.itemData(i) for i in range(dlg.motivo.count())]
+    assert motivos == list(MOTIVOS_MANUAIS)
 
 
 def test_extrato_mostra_periodo_padrao_e_imprime(qtbot, fabrica, relogio):

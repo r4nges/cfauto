@@ -1,7 +1,14 @@
 import pytest
 
 from cfauto.core.errors import PermissaoNegada
-from cfauto.core.permissoes import Ator, Modulo, exigir_admin, exigir_modulo, tem_modulo
+from cfauto.core.permissoes import (
+    Ator,
+    Modulo,
+    exigir_admin,
+    exigir_algum_modulo,
+    exigir_modulo,
+    tem_modulo,
+)
 
 OPERADOR = Ator(1, "Maria", "maria", False, frozenset({Modulo.PDV, Modulo.CLIENTES}))
 ADMIN = Ator(2, "João", "joao", True, frozenset())
@@ -34,3 +41,10 @@ def test_modulos_so_admin_ignoram_lista_do_operador():
     assert not tem_modulo(operador, Modulo.USUARIOS)
     with pytest.raises(PermissaoNegada):
         exigir_modulo(operador, Modulo.CFAUTO)
+
+
+def test_exigir_algum_modulo():
+    exigir_algum_modulo(OPERADOR, Modulo.ESTOQUE, Modulo.PDV)
+    exigir_algum_modulo(ADMIN, Modulo.ESTOQUE)
+    with pytest.raises(PermissaoNegada, match="ESTOQUE ou COMPRAS"):
+        exigir_algum_modulo(OPERADOR, Modulo.ESTOQUE, Modulo.COMPRAS)

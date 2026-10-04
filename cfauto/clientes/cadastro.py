@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import ColumnElement, or_, select
 from sqlalchemy.orm import Session
 
+from cfauto.caixa.models import Venda
 from cfauto.clientes.models import (
     LIMITE_PADRAO,
     MAX_DEPENDENTES,
@@ -31,7 +32,7 @@ from cfauto.core.errors import (
     ValorInvalido,
 )
 from cfauto.core.money import arredondar, formatar_brl
-from cfauto.core.permissoes import Ator, Modulo, exigir_admin, exigir_modulo
+from cfauto.core.permissoes import Ator, Modulo, exigir_admin, exigir_algum_modulo, exigir_modulo
 from cfauto.core.sequencias import proximo_codigo
 from cfauto.core.texto import normalizar_texto
 
@@ -194,7 +195,7 @@ def buscar_clientes(
     s: Session, ator: Ator, texto: str = "", *, incluir_inativos: bool = False
 ) -> list[ResumoCliente]:
     """Por nome (sem acento), código, ou dígitos de CPF/celular (a partir de 3 dígitos)."""
-    exigir_modulo(ator, Modulo.CLIENTES)
+    exigir_algum_modulo(ator, Modulo.CLIENTES, Modulo.PDV)
     consulta = select(Cliente).order_by(Cliente.nome_busca, Cliente.id)
     if not incluir_inativos:
         consulta = consulta.where(Cliente.ativo.is_(True))
@@ -213,7 +214,7 @@ def buscar_clientes(
 
 
 def obter_cliente(s: Session, ator: Ator, cliente_id: int) -> FichaCliente:
-    exigir_modulo(ator, Modulo.CLIENTES)
+    exigir_algum_modulo(ator, Modulo.CLIENTES, Modulo.PDV)
     c = carregar_cliente(s, cliente_id)
     dados = DadosCliente(
         nome=c.nome,
@@ -288,6 +289,11 @@ def excluir_cliente(s: Session, ator: Ator, cliente_id: int) -> None:
     if tem_historico is not None:
         raise ClienteComHistorico(
             "O cliente tem lançamentos no histórico e não pode ser excluído; use Inativar."
+        )
+    tem_venda = s.scalar(select(Venda.id).where(Venda.cliente_id == cliente.id).limit(1))
+    if tem_venda is not None:
+        raise ClienteComHistorico(
+            "O cliente tem vendas registradas e não pode ser excluído; use Inativar."
         )
     antes = _snapshot(cliente)
     s.delete(cliente)

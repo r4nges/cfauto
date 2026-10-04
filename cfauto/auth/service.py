@@ -150,6 +150,16 @@ def autenticar(s: Session, login: str, senha: str) -> Ator:
     return para_ator(u)
 
 
+def autorizar_admin(s: Session, login: str, senha: str) -> Ator:
+    """Senha do administrador na hora, sem trocar quem está logado. Mesmas regras de tentativas
+    e bloqueio do login; como `autenticar`, faz commit ao registrar uma tentativa falha, então
+    chame numa transação própria."""
+    ator = autenticar(s, login, senha)
+    if not ator.admin:
+        raise PermissaoNegada("Usuário não é administrador.")
+    return ator
+
+
 def atualizar_usuario(s: Session, ator: Ator, usuario_id: int, dados: AlteracaoUsuario) -> Ator:
     exigir_admin(ator)
     u = _obter(s, usuario_id)

@@ -55,3 +55,10 @@ def exigir_modulo(ator: Ator, modulo: Modulo) -> None:
 def exigir_admin(ator: Ator) -> None:
     if not ator.admin:
         raise PermissaoNegada("Ação restrita a administradores.")
+
+
+def exigir_algum_modulo(ator: Ator, *modulos: Modulo) -> None:
+    """Basta um dos módulos (ex.: a busca de produtos serve ao Estoque e ao PDV)."""
+    if not any(tem_modulo(ator, modulo) for modulo in modulos):
+        nomes = " ou ".join(modulo.value for modulo in modulos)
+        raise PermissaoNegada(f"Sem acesso ao módulo {nomes}.")

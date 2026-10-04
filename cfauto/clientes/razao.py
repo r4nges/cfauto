@@ -8,7 +8,13 @@ from sqlalchemy.orm import Session
 
 from cfauto.auth.models import Usuario
 from cfauto.clientes.cadastro import carregar_cliente, resumo_cliente
-from cfauto.clientes.models import Cliente, ClienteLancamento, MotivoLancamento, TipoLancamento
+from cfauto.clientes.models import (
+    MOTIVOS_MANUAIS,
+    Cliente,
+    ClienteLancamento,
+    MotivoLancamento,
+    TipoLancamento,
+)
 from cfauto.clientes.schemas import Extrato, LinhaLancamento
 from cfauto.core import clock
 from cfauto.core.audit import registrar
@@ -32,9 +38,11 @@ def lancar(
     valor: Decimal,
     motivo: MotivoLancamento,
     observacao: str = "",
+    *,
+    venda_id: int | None = None,
 ) -> ClienteLancamento:
     """Única porta de alteração de `saldo_devedor`. Não checa permissão, limite nem situação
-    do cliente: quem chama decide."""
+    do cliente: quem chama decide. `venda_id` liga o lançamento automático à venda do caixa."""
     valor = arredondar(valor)
     if valor <= 0:
         raise ValorInvalido("O valor do lançamento deve ser maior que zero.")
@@ -54,24 +62,20 @@ def lancar(
         motivo=motivo,
         observacao=observacao,
         usuario_id=ator.id,
+        venda_id=venda_id,
     )
     s.add(lancamento)
     s.flush()
-    registrar(
-        s,
-        ator.id,
-        "lancamento",
-        "cliente",
-        cliente.id,
-        {"saldo_devedor": antes},
-        {
-            "saldo_devedor": cliente.saldo_devedor,
-            "tipo": tipo,
-            "valor": valor,
-            "motivo": motivo,
-            "lancamento_id": lancamento.id,
-        },
-    )
+    depois: dict[str, object] = {
+        "saldo_devedor": cliente.saldo_devedor,
+        "tipo": tipo,
+        "valor": valor,
+        "motivo": motivo,
+        "lancamento_id": lancamento.id,
+    }
+    if venda_id is not None:
+        depois["venda_id"] = venda_id
+    registrar(s, ator.id, "lancamento", "cliente", cliente.id, {"saldo_devedor": antes}, depois)
     return lancamento
 
 
@@ -98,6 +102,8 @@ def lancar_manual(
     observacao: str = "",
 ) -> LinhaLancamento:
     exigir_modulo(ator, Modulo.CLIENTES)
+    if motivo not in MOTIVOS_MANUAIS:
+        raise ValorInvalido("Motivo reservado aos lançamentos automáticos do caixa.")
     cliente = carregar_cliente(s, cliente_id)
     if not cliente.ativo:
         raise ValorInvalido("Cliente inativo: reative antes de lançar.")

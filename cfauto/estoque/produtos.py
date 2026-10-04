@@ -11,7 +11,7 @@ from cfauto.core import clock
 from cfauto.core.audit import registrar
 from cfauto.core.errors import EanDuplicado, RegistroNaoEncontrado, ValorInvalido
 from cfauto.core.money import arredondar, arredondar_custo, arredondar_qtd
-from cfauto.core.permissoes import Ator, Modulo, exigir_modulo
+from cfauto.core.permissoes import Ator, Modulo, exigir_algum_modulo, exigir_modulo
 from cfauto.core.sequencias import proximo_codigo
 from cfauto.core.texto import normalizar_texto
 from cfauto.estoque.models import (
@@ -232,7 +232,7 @@ def buscar_produtos(
 ) -> list[Produto]:
     """Código/EAN exatos primeiro; depois descrição começando pelo termo; depois descrição
     contendo todas as palavras. Sem acento e sem diferenciar maiúsculas."""
-    exigir_modulo(ator, Modulo.ESTOQUE)
+    exigir_algum_modulo(ator, Modulo.ESTOQUE, Modulo.PDV)
     consulta = select(Produto)
     if not incluir_inativos:
         consulta = consulta.where(Produto.ativo.is_(True))

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from cfauto.core.audit import registrar
 from cfauto.core.errors import RegistroNaoEncontrado, ValorInvalido
 from cfauto.core.money import arredondar, arredondar_custo, arredondar_qtd
-from cfauto.core.permissoes import Ator, Modulo, exigir_modulo
+from cfauto.core.permissoes import Ator, Modulo, exigir_algum_modulo, exigir_modulo
 from cfauto.core.sequencias import proximo_codigo
 from cfauto.core.texto import normalizar_texto
 from cfauto.estoque.models import Servico, ServicoMaterial
@@ -109,7 +109,7 @@ def reativar_servico(s: Session, ator: Ator, servico_id: int) -> Servico:
 
 
 def listar_servicos(s: Session, ator: Ator, *, incluir_inativos: bool = False) -> list[Servico]:
-    exigir_modulo(ator, Modulo.ESTOQUE)
+    exigir_algum_modulo(ator, Modulo.ESTOQUE, Modulo.PDV)
     consulta = select(Servico)
     if not incluir_inativos:
         consulta = consulta.where(Servico.ativo.is_(True))

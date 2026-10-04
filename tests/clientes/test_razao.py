@@ -149,3 +149,18 @@ def test_extrato_datas_invertidas(sessao, admin):
     cid = _cliente(sessao, admin)
     with pytest.raises(ValorInvalido, match="anterior"):
         extrato(sessao, admin, cid, date(2026, 9, 30), date(2026, 9, 1))
+
+
+@pytest.mark.parametrize(
+    "motivo",
+    [
+        MotivoLancamento.VENDA_CREDIARIO,
+        MotivoLancamento.RECEBIMENTO,
+        MotivoLancamento.CANCELAMENTO,
+    ],
+)
+def test_lancamento_manual_recusa_motivos_do_caixa(sessao, admin, motivo):
+    cid = _cliente(sessao, admin)
+    with pytest.raises(ValorInvalido, match="automáticos do caixa"):
+        lancar_manual(sessao, admin, cid, DEBITO, Decimal("10"), motivo)
+    assert sessao.get(Cliente, cid).saldo_devedor == Decimal("0.00")

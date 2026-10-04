@@ -193,8 +193,8 @@ def test_soma_dos_movimentos_bate_com_estoque(sessao, estoquista):
 def test_operador_sem_modulo_estoque_e_barrado(sessao, operador):
     with pytest.raises(PermissaoNegada):
         _criar(sessao, operador)
-    with pytest.raises(PermissaoNegada):
-        buscar_produtos(sessao, operador)
+    # A busca é liberada para quem tem PDV (o operador tem).
+    assert buscar_produtos(sessao, operador) == []
 
 
 def test_desativar_e_reativar(sessao, estoquista):

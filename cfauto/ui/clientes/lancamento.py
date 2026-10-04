@@ -16,7 +16,12 @@ from PySide6.QtWidgets import (
 )
 from sqlalchemy.orm import Session, sessionmaker
 
-from cfauto.clientes.models import TITULOS_MOTIVO_LANCAMENTO, MotivoLancamento, TipoLancamento
+from cfauto.clientes.models import (
+    MOTIVOS_MANUAIS,
+    TITULOS_MOTIVO_LANCAMENTO,
+    MotivoLancamento,
+    TipoLancamento,
+)
 from cfauto.clientes.razao import TAMANHO_OBSERVACAO, lancar_manual, saldo_apos
 from cfauto.clientes.schemas import ResumoCliente
 from cfauto.clientes.validacao import formatar_saldo
@@ -49,7 +54,7 @@ class DialogoLancamento(QDialog):
         self.aumentar.setChecked(True)
         self.valor = QLineEdit()
         self.motivo = QComboBox()
-        for motivo in MotivoLancamento:
+        for motivo in MOTIVOS_MANUAIS:
             self.motivo.addItem(TITULOS_MOTIVO_LANCAMENTO[motivo], motivo)
         self.observacao = QLineEdit()
         self.observacao.setMaxLength(TAMANHO_OBSERVACAO)
