@@ -4,6 +4,8 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from cfauto.caixa.schemas import PainelSessao
+from cfauto.caixa.sessao import abrir_sessao
 from cfauto.clientes.cadastro import criar_cliente
 from cfauto.clientes.schemas import DadosCliente
 from cfauto.core.permissoes import Ator
@@ -67,3 +69,7 @@ def criar_cliente_teste(
     limite: Decimal | None = Decimal("500.00"),
 ) -> int:
     return criar_cliente(s, ator, DadosCliente(nome=nome, celular=celular, limite=limite))
+
+
+def abrir_caixa(s: Session, ator: Ator, fundo: Decimal = Decimal("100.00")) -> PainelSessao:
+    return abrir_sessao(s, ator, fundo)
