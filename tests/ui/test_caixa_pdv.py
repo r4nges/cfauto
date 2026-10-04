@@ -3,6 +3,8 @@
 from decimal import Decimal
 
 import pytest
+from PySide6.QtCore import QEvent
+from PySide6.QtWidgets import QApplication, QWidget
 from sqlalchemy import func, select
 
 from cfauto.auth.service import NovoUsuario, autorizar_admin, criar_usuario
@@ -22,7 +24,7 @@ from cfauto.ui.caixa import abrir as modulo_abrir
 from cfauto.ui.caixa import autorizacao as modulo_autorizacao
 from cfauto.ui.caixa import pdv as modulo_pdv
 from cfauto.ui.caixa.abrir import DialogoAbrirCaixa
-from cfauto.ui.caixa.autorizacao import DialogoAutorizacao
+from cfauto.ui.caixa.autorizacao import DialogoAutorizacao, pedir_autorizacao
 from cfauto.ui.caixa.pagina import PaginaCaixa
 from cfauto.ui.caixa.pdv import TelaPdv
 from tests.fabricas import abrir_caixa, criar_cliente_teste, criar_produto, criar_servico
@@ -154,6 +156,45 @@ def test_dialogo_autorizacao_so_aceita_admin(qtbot, fabrica, relogio, monkeypatc
     dlg.confirmar()
     assert dlg.result() == 1
     assert dlg.autorizador.login == "dono"
+
+
+@pytest.mark.parametrize("desfecho", ["aceito", "cancelado", "excecao"])
+def test_pedir_autorizacao_nao_retem_a_senha_do_admin(
+    qtbot, fabrica, relogio, monkeypatch, desfecho
+):
+    """O diálogo é filho da tela; sem limpar e apagar, a senha do admin ficaria na memória."""
+    _atores(fabrica)
+    pai = QWidget()
+    qtbot.addWidget(pai)
+    dialogos = []
+
+    def exec_simulado(self):  # sem modal de verdade: digita e responde na hora
+        dialogos.append(self)
+        self.login.setText("dono")
+        self.senha.setText("segredo1")
+        if desfecho == "aceito":
+            self.confirmar()
+        elif desfecho == "cancelado":
+            self.reject()
+        else:
+            raise RuntimeError("falha dentro do diálogo")
+        return self.result()
+
+    monkeypatch.setattr(DialogoAutorizacao, "exec", exec_simulado)
+    if desfecho == "excecao":
+        with pytest.raises(RuntimeError):
+            pedir_autorizacao(fabrica, pai, "Vender sem estoque?")
+    else:
+        autorizador = pedir_autorizacao(fabrica, pai, "Vender sem estoque?")
+        if desfecho == "aceito":
+            assert autorizador is not None
+            assert (autorizador.login, autorizador.admin) == ("dono", True)
+        else:
+            assert autorizador is None
+    [dialogo] = dialogos
+    assert dialogo.senha.text() == ""  # limpa antes mesmo de o objeto ser apagado
+    QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert pai.findChildren(DialogoAutorizacao) == []
 
 
 def test_leitor_de_codigo_soma_na_mesma_linha(qtbot, fabrica, relogio):

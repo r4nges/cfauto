@@ -68,7 +68,12 @@ def pedir_autorizacao(
     fabrica: sessionmaker[Session], parent: QWidget | None, texto: str
 ) -> Ator | None:
     dialogo = DialogoAutorizacao(fabrica, texto, parent)
-    return dialogo.autorizador if dialogo.exec() else None
+    try:
+        return dialogo.autorizador if dialogo.exec() else None
+    finally:
+        # O diálogo é filho de `parent`: sem isto ele (e a senha digitada) viveria até o fim do app.
+        dialogo.senha.clear()
+        dialogo.deleteLater()
 
 
 def perguntar_padrao(parent: QWidget, texto: str) -> bool:
