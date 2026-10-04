@@ -16,15 +16,31 @@ from cfauto.caixa.calculo import (
     valor_cobrado,
     valor_desconto,
 )
-from cfauto.caixa.models import CATEGORIA_SERVICO, FormaPagamento, TipoVenda, Venda, VendaItem
+from cfauto.caixa.models import (
+    CATEGORIA_SERVICO,
+    TAMANHO_MOTIVO_CANCELAMENTO,
+    FormaPagamento,
+    SessaoCaixa,
+    StatusSessao,
+    TipoVenda,
+    Venda,
+    VendaItem,
+)
 from cfauto.caixa.schemas import LinhaVenda, NovaVenda
 from cfauto.caixa.sessao import carregar_sessao_aberta, exigir_sessao_aberta, nome_usuario
 from cfauto.caixa.taxas import taxa_da_forma
 from cfauto.clientes.models import Cliente, MotivoLancamento, TipoLancamento
-from cfauto.clientes.razao import lancar
+from cfauto.clientes.razao import TAMANHO_OBSERVACAO, lancar
 from cfauto.core import clock
 from cfauto.core.audit import registrar
-from cfauto.core.errors import EstoqueInsuficiente, LimiteExcedido, PermissaoNegada, ValorInvalido
+from cfauto.core.errors import (
+    EstoqueInsuficiente,
+    LimiteExcedido,
+    PermissaoNegada,
+    RegistroNaoEncontrado,
+    SessaoFechada,
+    ValorInvalido,
+)
 from cfauto.core.money import arredondar_qtd, formatar_brl, formatar_qtd
 from cfauto.core.permissoes import Ator, Modulo, exigir_modulo
 from cfauto.estoque.models import Produto, Servico, TipoMovimento
@@ -296,3 +312,80 @@ def vendas_da_sessao(s: Session, ator: Ator) -> list[LinhaVenda]:
         .order_by(Venda.data_hora.desc(), Venda.id.desc())
     )
     return [_linha_venda(s, venda) for venda in vendas]
+
+
+def cancelar_venda(
+    s: Session, ator: Ator, venda_id: int, motivo: str, *, autorizador: Ator | None = None
+) -> None:
+    """Só admin (logado ou pela senha) e só com a sessão da venda aberta. Devolve o estoque e
+    estorna o razão do cliente; nenhuma linha é apagada."""
+    exigir_modulo(ator, Modulo.PDV)
+    if admin_responsavel(ator, autorizador) is None:
+        raise PermissaoNegada("Cancelar venda exige um administrador.")
+    motivo = motivo.strip()
+    if not motivo:
+        raise ValorInvalido("Informe o motivo do cancelamento.")
+    if len(motivo) > TAMANHO_MOTIVO_CANCELAMENTO:
+        raise ValorInvalido(f"Motivo: máximo de {TAMANHO_MOTIVO_CANCELAMENTO} caracteres.")
+    venda = s.get(Venda, venda_id)
+    if venda is None:
+        raise RegistroNaoEncontrado("Venda não encontrada.")
+    sessao = s.get(SessaoCaixa, venda.sessao_id)
+    if sessao is None or sessao.status != StatusSessao.ABERTA:
+        raise SessaoFechada("Sessão fechada: a venda não pode mais ser cancelada.")
+    if venda.cancelada:
+        raise ValorInvalido("A venda já está cancelada.")
+    for item in venda.itens:
+        if item.produto_id is None:
+            continue
+        produto = s.get(Produto, item.produto_id)
+        if produto is None:
+            raise RegistroNaoEncontrado("Produto da venda não encontrado.")
+        movimentar(
+            s,
+            ator,
+            produto,
+            item.qtd,
+            TipoMovimento.CANCELAMENTO_VENDA,
+            observacao=f"Cancelamento da venda nº {venda.id}",
+            venda_item_id=item.id,
+        )
+    estorna_razao = venda.tipo == TipoVenda.RECEBIMENTO or (
+        venda.forma_pagamento == FormaPagamento.CREDIARIO
+    )
+    if estorna_razao and venda.cliente_id is not None:
+        cliente = s.get(Cliente, venda.cliente_id)
+        if cliente is None:
+            raise RegistroNaoEncontrado("Cliente da venda não encontrado.")
+        # Venda no crediário tinha aumentado a dívida; recebimento tinha abatido.
+        tipo = TipoLancamento.CREDITO if venda.tipo == TipoVenda.VENDA else TipoLancamento.DEBITO
+        observacao = f"Cancelamento da venda nº {venda.id}: {motivo}"[:TAMANHO_OBSERVACAO]
+        lancar(
+            s,
+            ator,
+            cliente,
+            tipo,
+            venda.bruto,
+            MotivoLancamento.CANCELAMENTO,
+            observacao,
+            venda_id=venda.id,
+        )
+    venda.cancelada = True
+    venda.cancelada_em = clock.agora()
+    venda.cancelada_por = ator.id
+    venda.cancelamento_autorizado_por = None if ator.admin else admin_responsavel(ator, autorizador)
+    venda.motivo_cancelamento = motivo
+    s.flush()
+    registrar(
+        s,
+        ator.id,
+        "cancelar",
+        "venda",
+        venda.id,
+        {"cancelada": False},
+        {
+            "cancelada": True,
+            "motivo": motivo,
+            "cancelamento_autorizado_por": venda.cancelamento_autorizado_por,
+        },
+    )
