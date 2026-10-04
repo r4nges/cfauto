@@ -13,8 +13,11 @@ from cfauto.caixa.models import (
     Venda,
     VendaItem,
 )
+from cfauto.caixa.recebimento import registrar_recebimento
+from cfauto.caixa.schemas import ItemVenda, NovaVenda
+from cfauto.caixa.venda import cancelar_venda, registrar_venda
 from cfauto.clientes.cadastro import buscar_clientes, criar_cliente, excluir_cliente, obter_cliente
-from cfauto.clientes.models import Cliente, MotivoLancamento, TipoLancamento
+from cfauto.clientes.models import Cliente, ClienteLancamento, MotivoLancamento, TipoLancamento
 from cfauto.clientes.razao import lancar
 from cfauto.clientes.schemas import DadosCliente
 from cfauto.core.errors import ClienteComHistorico, PermissaoNegada
@@ -129,3 +132,48 @@ def test_excluir_cliente_com_venda_bloqueia(sessao, admin):
     with pytest.raises(ClienteComHistorico, match="vendas registradas"):
         excluir_cliente(sessao, admin, cid)
     assert sessao.get(Cliente, cid) is not None
+
+
+def test_razao_ponta_a_ponta_crediario_recebimento_e_os_dois_cancelamentos(sessao, admin, operador):
+    """Serviços reais: cada passo encadeia o saldo e, ao fim, o razão fecha em zero."""
+    pid = fabricas.criar_produto(sessao, admin)
+    cid = fabricas.criar_cliente_teste(sessao, admin)
+    fabricas.abrir_caixa(sessao, operador)
+
+    def saldo():
+        return sessao.get(Cliente, cid).saldo_devedor
+
+    venda = registrar_venda(
+        sessao,
+        operador,
+        NovaVenda(
+            itens=(ItemVenda(Decimal(1), produto_id=pid),),
+            forma=FormaPagamento.CREDIARIO,
+            cliente_id=cid,
+        ),
+    )
+    assert saldo() == Decimal("30.00")
+    recebimento = registrar_recebimento(sessao, operador, cid, Decimal("30"), FormaPagamento.PIX)
+    assert saldo() == Decimal("0.00")
+    cancelar_venda(sessao, admin, venda, "Devolução")
+    assert saldo() == Decimal("-30.00")  # a dívida sumiu, mas o PIX continua pago: crédito a favor
+    cancelar_venda(sessao, admin, recebimento, "PIX não caiu")
+    assert saldo() == Decimal("0.00")
+
+    D, C = TipoLancamento.DEBITO, TipoLancamento.CREDITO
+    lancamentos = sessao.scalars(
+        select(ClienteLancamento)
+        .where(ClienteLancamento.cliente_id == cid)
+        .order_by(ClienteLancamento.id)
+    ).all()
+    assert [
+        (lanc.tipo, lanc.valor, lanc.motivo, lanc.saldo_apos, lanc.venda_id) for lanc in lancamentos
+    ] == [
+        (D, Decimal("30.00"), MotivoLancamento.VENDA_CREDIARIO, Decimal("30.00"), venda),
+        (C, Decimal("30.00"), MotivoLancamento.RECEBIMENTO, Decimal("0.00"), recebimento),
+        (C, Decimal("30.00"), MotivoLancamento.CANCELAMENTO, Decimal("-30.00"), venda),
+        (D, Decimal("30.00"), MotivoLancamento.CANCELAMENTO, Decimal("0.00"), recebimento),
+    ]
+    debitos = sum((lanc.valor for lanc in lancamentos if lanc.tipo == D), Decimal(0))
+    creditos = sum((lanc.valor for lanc in lancamentos if lanc.tipo == C), Decimal(0))
+    assert debitos - creditos == Decimal("0.00")

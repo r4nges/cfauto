@@ -3,6 +3,7 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
 from PySide6.QtCore import QDate
 
 from cfauto.auth.service import NovoUsuario, criar_usuario
@@ -15,6 +16,16 @@ from cfauto.core.db import transacao
 from cfauto.ui.historico import tela as modulo_historico
 from cfauto.ui.historico.tela import TelaHistorico
 from tests.fabricas import abrir_caixa, criar_cliente_teste, criar_produto, criar_servico
+
+
+@pytest.fixture(autouse=True)
+def _sem_dialogo_modal(monkeypatch):
+    """Um erro inesperado falha o teste em vez de abrir um QMessageBox modal que o travaria."""
+
+    def falhar(_pai, erro):
+        pytest.fail(f"erro mostrado ao usuário sem o teste esperar: {erro}")
+
+    monkeypatch.setattr(modulo_historico, "mostrar_erro", falhar)
 
 
 def _venda(s, ator, forma, *, produto_id=None, servico_id=None, cliente_id=None):
