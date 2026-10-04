@@ -3,8 +3,8 @@
 from decimal import Decimal
 
 import pytest
-from PySide6.QtCore import QEvent
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtWidgets import QAbstractItemView, QApplication, QWidget
 from sqlalchemy import func, select
 
 from cfauto.auth.service import NovoUsuario, autorizar_admin, criar_usuario
@@ -19,7 +19,9 @@ from cfauto.clientes.razao import lancar_manual
 from cfauto.clientes.schemas import DadosCliente, DadosDependente
 from cfauto.core.db import transacao
 from cfauto.core.permissoes import Modulo
-from cfauto.estoque.produtos import buscar_produtos
+from cfauto.estoque.produtos import atualizar_produto, buscar_produtos, desativar_produto
+from cfauto.estoque.schemas import DadosMaterial, DadosProduto, DadosServico
+from cfauto.estoque.servicos import atualizar_servico
 from cfauto.ui.caixa import abrir as modulo_abrir
 from cfauto.ui.caixa import autorizacao as modulo_autorizacao
 from cfauto.ui.caixa import pdv as modulo_pdv
@@ -30,6 +32,17 @@ from cfauto.ui.caixa.pdv import TelaPdv
 from tests.fabricas import abrir_caixa, criar_cliente_teste, criar_produto, criar_servico
 
 EAN = "7891234567895"
+
+
+@pytest.fixture(autouse=True)
+def _sem_dialogo_modal(monkeypatch):
+    """Um erro inesperado falha o teste em vez de abrir um QMessageBox modal que o travaria."""
+
+    def falhar(_pai, erro):
+        pytest.fail(f"erro mostrado ao usuário sem o teste esperar: {erro}")
+
+    for modulo in (modulo_abrir, modulo_autorizacao, modulo_pdv):
+        monkeypatch.setattr(modulo, "mostrar_erro", falhar)
 
 
 def _atores(fabrica):
@@ -110,6 +123,28 @@ def test_pagina_sem_caixa_aberto_mostra_caixa_fechado_e_abre(qtbot, fabrica, rel
     pagina.recarregar()
     assert pagina.currentWidget() is pagina.pdv
     assert pagina.pdv.cabecalho.text() == "CX-20260923-1000 · fundo R$ 150,00 · gaveta R$ 150,00"
+
+
+def test_abrir_caixa_ja_aberto_por_outro_login_e_cancelar_recarrega_a_pagina(
+    qtbot, fabrica, relogio, monkeypatch
+):
+    erros = _erros(monkeypatch, modulo_abrir)
+    admin, operador, *_ = _loja(fabrica, abrir=False)
+    pagina = PaginaCaixa(fabrica, operador)
+    qtbot.addWidget(pagina)
+    assert pagina.currentWidget() is pagina.fechado
+
+    def exec_simulado(self):
+        with transacao(fabrica) as s:  # outro login abre o caixa com o diálogo aberto
+            abrir_caixa(s, admin)
+        self.abrir()  # o operador confirma: a sessão já existe
+        self.reject()
+        return self.result()
+
+    monkeypatch.setattr(DialogoAbrirCaixa, "exec", exec_simulado)
+    pagina.botao_abrir.click()
+    assert erros == ["Já existe um caixa aberto; feche-o antes de abrir outro."]
+    assert pagina.currentWidget() is pagina.pdv
 
 
 def test_abrir_caixa_invalido_mostra_erro_e_nao_fecha(qtbot, fabrica, relogio, monkeypatch):
@@ -285,7 +320,7 @@ def test_venda_mista_em_dinheiro_com_desconto_e_troco(qtbot, fabrica, relogio):
     tela.recebido.setText("100")
     assert tela.troco.text() == "Troco R$ 46,00"
     tela.finalizar()
-    assert tela.mensagem.text() == "Venda nº 1 registrada."
+    assert tela.mensagem.text() == "Venda nº 1 registrada. Total R$ 54,00."
     assert tela.carrinho.rowCount() == 0
     assert tela.desconto.text() == ""
     assert tela.cabecalho.text().endswith("gaveta R$ 154,00")
@@ -310,7 +345,7 @@ def test_recebido_vazio_permite_e_invalido_mostra_erro(qtbot, fabrica, relogio, 
     assert _qtd_vendas(fabrica) == 0
     tela.recebido.setText("")
     tela.finalizar()
-    assert tela.mensagem.text() == "Venda nº 1 registrada."
+    assert tela.mensagem.text() == "Venda nº 1 registrada. Total R$ 30,00."
 
 
 def test_debito_com_repasse_soma_a_taxa_e_desabilita_recebido(qtbot, fabrica, relogio):
@@ -351,7 +386,7 @@ def test_crediario_desabilita_desconto_exige_cliente_e_confirma_limite(
     assert "Passa do disponível do cliente em R$ 10,00" in tela.totais.text()
     tela.finalizar()
     assert len(perguntas) == 1
-    assert tela.mensagem.text() == "Venda nº 1 registrada."
+    assert tela.mensagem.text() == "Venda nº 1 registrada. Total R$ 30,00."
     assert tela.painel_cliente.text() == "Sem cliente (consumidor final)."
     with transacao(fabrica) as s:
         assert obter_cliente(s, admin, cid).saldo_devedor == Decimal("30.00")
@@ -416,7 +451,7 @@ def test_operador_sem_estoque_pede_autorizacao_do_admin(qtbot, fabrica, relogio)
     tela.finalizar()
     assert len(pedidos) == 2
     assert "administrador" in pedidos[0]
-    assert tela.mensagem.text() == "Venda nº 1 registrada."
+    assert tela.mensagem.text() == "Venda nº 1 registrada. Total R$ 30,00."
     assert _estoque(fabrica, admin) == Decimal("-1")
 
 
@@ -429,12 +464,11 @@ def test_admin_sem_estoque_confirma_na_tela(qtbot, fabrica, relogio):
     tela.finalizar()
     assert _qtd_vendas(fabrica) == 0
     tela.finalizar()
-    assert tela.mensagem.text() == "Venda nº 1 registrada."
+    assert tela.mensagem.text() == "Venda nº 1 registrada. Total R$ 30,00."
     assert "Estoque insuficiente" in perguntas[0]
 
 
-def test_confirmacoes_acumulam_estoque_e_limite(qtbot, fabrica, relogio, monkeypatch):
-    erros = _erros(monkeypatch, modulo_pdv)  # sem isso, uma regressão travaria num QMessageBox
+def test_confirmacoes_acumulam_estoque_e_limite(qtbot, fabrica, relogio):
     admin, operador, produto_id, _ = _loja(fabrica, estoque=Decimal("0"))
     with transacao(fabrica) as s:
         cid = criar_cliente_teste(s, admin, limite=Decimal("20.00"))
@@ -457,9 +491,8 @@ def test_confirmacoes_acumulam_estoque_e_limite(qtbot, fabrica, relogio, monkeyp
     tela.forma.setCurrentIndex(tela.forma.findData(FormaPagamento.CREDIARIO))
     tela.definir_cliente(cid)
     tela.finalizar()  # falta estoque → autoriza; no reenvio, passa do limite → confirma
-    assert erros == []
     assert (len(pedidos), len(perguntas)) == (1, 1)
-    assert tela.mensagem.text() == "Venda nº 1 registrada."
+    assert tela.mensagem.text() == "Venda nº 1 registrada. Total R$ 30,00."
     assert _estoque(fabrica, admin) == Decimal("-1")
     with transacao(fabrica) as s:
         assert obter_cliente(s, admin, cid).saldo_devedor == Decimal("30.00")
@@ -480,3 +513,193 @@ def test_caixa_fechado_por_outro_login_volta_para_caixa_fechado(
     assert "Caixa fechado" in erros[0]
     assert pagina.currentWidget() is pagina.fechado
     assert _qtd_vendas(fabrica) == 0
+
+
+# --- Foco: o leitor de código sempre cai na busca, nunca na quantidade do carrinho -------------
+
+
+def _tela_visivel(qtbot, fabrica, ator, **kwargs):
+    tela = _tela(qtbot, fabrica, ator, **kwargs)
+    tela.show()
+    qtbot.waitExposed(tela)
+    return tela
+
+
+def test_digitar_com_a_celula_do_carrinho_selecionada_nao_edita_a_quantidade(
+    qtbot, fabrica, relogio
+):
+    _, operador, produto_id, _ = _loja(fabrica)
+    tela = _tela_visivel(qtbot, fabrica, operador)
+    tela.adicionar_produto(produto_id)
+    tela.carrinho.setCurrentCell(0, 1)
+    tela.carrinho.setFocus()
+    qtbot.keyClicks(tela.carrinho, "15")
+    assert tela.carrinho.state() != QAbstractItemView.State.EditingState
+    qtbot.keyClick(tela.carrinho, Qt.Key.Key_Return)
+    assert _qtds(tela) == ["1"]
+    assert "Total a cobrar R$ 30,00" in tela.totais.text()
+
+
+def test_f2_e_duplo_clique_continuam_editando_a_quantidade(qtbot, fabrica, relogio):
+    _, operador, produto_id, _ = _loja(fabrica)
+    tela = _tela_visivel(qtbot, fabrica, operador)
+    tela.adicionar_produto(produto_id)
+    gatilhos = tela.carrinho.editTriggers()
+    assert gatilhos & QAbstractItemView.EditTrigger.DoubleClicked
+    assert not gatilhos & QAbstractItemView.EditTrigger.AnyKeyPressed
+    tela.carrinho.setCurrentCell(0, 1)
+    tela.carrinho.setFocus()
+    qtbot.keyClick(tela.carrinho, Qt.Key.Key_F2)
+    assert tela.carrinho.state() == QAbstractItemView.State.EditingState
+
+
+def test_depois_de_editar_a_quantidade_o_proximo_codigo_vai_para_a_busca(qtbot, fabrica, relogio):
+    _, operador, produto_id, _ = _loja(fabrica)
+    tela = _tela_visivel(qtbot, fabrica, operador)
+    tela.adicionar_produto(produto_id)
+    tela.carrinho.setCurrentCell(0, 1)
+    tela.carrinho.setFocus()
+    tela.carrinho.item(0, 1).setText("2")
+    qtbot.waitUntil(lambda: "Total a cobrar R$ 60,00" in tela.totais.text())
+    assert tela.focusWidget() is tela.busca
+    qtbot.keyClicks(tela.busca, "0001")  # código curto, como um EAN-8 lido pelo leitor
+    qtbot.keyClick(tela.busca, Qt.Key.Key_Return)
+    assert _qtds(tela) == ["3"]
+    assert tela.focusWidget() is tela.busca
+
+
+def test_quantidade_invalida_tambem_devolve_o_foco_para_a_busca(
+    qtbot, fabrica, relogio, monkeypatch
+):
+    erros = _erros(monkeypatch, modulo_pdv)
+    _, operador, produto_id, _ = _loja(fabrica)
+    tela = _tela_visivel(qtbot, fabrica, operador)
+    tela.adicionar_produto(produto_id)
+    tela.carrinho.setFocus()
+    tela.definir_qtd(0, "abc")
+    assert len(erros) == 1
+    assert _qtds(tela) == ["1"]
+    assert tela.focusWidget() is tela.busca
+
+
+def test_foco_volta_para_a_busca_depois_de_adicionar_remover_limpar_e_finalizar(
+    qtbot, fabrica, relogio
+):
+    _, operador, produto_id, servico_id = _loja(fabrica)
+    tela = _tela_visivel(qtbot, fabrica, operador)
+    tela.busca.setText("oleo")
+    tela.buscar()
+    tela.resultados.setFocus()
+    tela.resultados.doubleClicked.emit(tela.resultados.model().index(0, 0))
+    assert tela.carrinho.rowCount() == 1
+    assert tela.focusWidget() is tela.busca
+    tela.adicionar_servico(servico_id)
+    tela.carrinho.setFocus()
+    tela.remover_item(0)
+    assert tela.focusWidget() is tela.busca
+    tela.carrinho.setFocus()
+    tela.limpar()
+    assert tela.focusWidget() is tela.busca
+    tela.adicionar_produto(produto_id)
+    tela.botao_finalizar.setFocus()
+    tela.finalizar()
+    assert tela.mensagem.text().startswith("Venda nº 1 registrada.")
+    assert tela.focusWidget() is tela.busca
+
+
+# --- Preço do carrinho: o que a prévia mostra é o que a venda grava ---------------------------
+
+
+def _alterar_preco_produto(fabrica, admin, produto_id, preco):
+    with transacao(fabrica) as s:
+        atualizar_produto(
+            s,
+            admin,
+            produto_id,
+            DadosProduto(
+                descricao="Óleo 5W30", ean=EAN, categoria="Lubrificantes", preco_venda=preco
+            ),
+        )
+
+
+def _venda_gravada(fabrica, ator):
+    with transacao(fabrica) as s:
+        [venda] = vendas_da_sessao(s, ator)
+    return venda
+
+
+def test_recarregar_reprecifica_o_carrinho_e_a_previa_bate_com_a_venda_gravada(
+    qtbot, fabrica, relogio
+):
+    admin, operador, produto_id, servico_id = _loja(fabrica)
+    tela = _tela(qtbot, fabrica, operador)
+    tela.adicionar_produto(produto_id)
+    tela.definir_qtd(0, "2")
+    assert "Total a cobrar R$ 60,00" in tela.totais.text()
+    tela.recarregar()
+    assert tela.mensagem.text() == ""  # preço igual: nenhum aviso
+    _alterar_preco_produto(fabrica, admin, produto_id, Decimal("35.00"))  # admin editou no Estoque
+    tela.recarregar()
+    assert tela.carrinho.item(0, 2).text() == "R$ 35,00"
+    assert tela.carrinho.item(0, 3).text() == "R$ 70,00"
+    assert "Total a cobrar R$ 70,00" in tela.totais.text()
+    assert "Óleo 5W30" in tela.mensagem.text()
+    assert "R$ 30,00" in tela.mensagem.text()
+    assert "R$ 35,00" in tela.mensagem.text()
+    tela.finalizar()
+    assert _venda_gravada(fabrica, operador).bruto == Decimal("70.00")
+    assert tela.mensagem.text() == "Venda nº 1 registrada. Total R$ 70,00."
+
+
+def test_recarregar_reprecifica_servico_e_mantem_demais_itens(qtbot, fabrica, relogio):
+    admin, operador, produto_id, servico_id = _loja(fabrica)
+    tela = _tela(qtbot, fabrica, operador)
+    tela.adicionar_produto(produto_id)
+    tela.adicionar_servico(servico_id)
+    with transacao(fabrica) as s:  # material de R$ 40 + 50% de mão de obra = R$ 60
+        atualizar_servico(
+            s,
+            admin,
+            servico_id,
+            DadosServico(
+                nome="Troca de óleo",
+                materiais=(DadosMaterial(descricao="Material", custo_unit=Decimal("40.00")),),
+                mao_obra_pct=Decimal(50),
+            ),
+        )
+    tela.recarregar()
+    assert [tela.carrinho.item(i, 2).text() for i in range(2)] == ["R$ 30,00", "R$ 60,00"]
+    assert "Subtotal R$ 90,00" in tela.totais.text()
+    assert "Troca de óleo" in tela.mensagem.text()
+    assert "Óleo 5W30" not in tela.mensagem.text()  # só o item que mudou é avisado
+
+
+def test_recarregar_com_produto_inativado_avisa_e_o_servico_rejeita_no_finalizar(
+    qtbot, fabrica, relogio, monkeypatch
+):
+    erros = _erros(monkeypatch, modulo_pdv)
+    admin, operador, produto_id, _ = _loja(fabrica)
+    tela = _tela(qtbot, fabrica, operador)
+    tela.adicionar_produto(produto_id)
+    with transacao(fabrica) as s:
+        desativar_produto(s, admin, produto_id)
+    tela.recarregar()
+    assert _qtds(tela) == ["1"]  # o item continua no carrinho, com aviso
+    assert "Óleo 5W30" in tela.mensagem.text()
+    assert "não está mais disponível" in tela.mensagem.text()
+    tela.finalizar()
+    assert erros == ["Produto inativo: Óleo 5W30."]
+    assert _qtd_vendas(fabrica) == 0
+
+
+def test_mensagem_de_sucesso_mostra_o_total_gravado_com_repasse_de_taxa(qtbot, fabrica, relogio):
+    admin, operador, produto_id, _ = _loja(fabrica)
+    with transacao(fabrica) as s:
+        atualizar_taxa(s, admin, FormaPagamento.DEBITO, Decimal("1.5"), 7, True)
+    tela = _tela(qtbot, fabrica, operador)
+    tela.adicionar_produto(produto_id)
+    tela.forma.setCurrentIndex(tela.forma.findData(FormaPagamento.DEBITO))
+    assert "Total a cobrar R$ 30,45" in tela.totais.text()
+    tela.finalizar()
+    assert tela.mensagem.text() == "Venda nº 1 registrada. Total R$ 30,45."
+    assert _venda_gravada(fabrica, operador).cobrado == Decimal("30.45")

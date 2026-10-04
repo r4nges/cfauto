@@ -85,14 +85,20 @@ class BuscaCliente:
             self._ao_escolher(int(cliente_id))
 
 
+def _linha_da_forma(forma: FormaPagamento, t: TotaisForma) -> str:
+    linha = (
+        f"  {TITULOS_FORMA[forma]}: {t.qtd} · bruto {formatar_brl(t.bruto)}"
+        f" · taxa {formatar_brl(t.taxa)} · líquido {formatar_brl(t.liquido)}"
+    )
+    if t.cobrado != t.bruto:  # repasse ligado: o total na maquininha é bruto + taxa
+        linha += f" · cobrado {formatar_brl(t.cobrado)}"
+    return linha
+
+
 def _linhas_por_forma(totais: dict[FormaPagamento, TotaisForma]) -> list[str]:
     if not totais:
         return ["  nenhuma"]
-    return [
-        f"  {TITULOS_FORMA[forma]}: {t.qtd} · bruto {formatar_brl(t.bruto)}"
-        f" · taxa {formatar_brl(t.taxa)} · líquido {formatar_brl(t.liquido)}"
-        for forma, t in totais.items()
-    ]
+    return [_linha_da_forma(forma, t) for forma, t in totais.items()]
 
 
 def descrever_resumo(resumo: ResumoSessao) -> str:

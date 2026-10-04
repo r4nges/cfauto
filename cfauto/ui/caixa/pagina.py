@@ -46,5 +46,6 @@ class PaginaCaixa(QStackedWidget):
         self.setCurrentWidget(self.pdv)
 
     def _abrir_caixa(self) -> None:
-        if DialogoAbrirCaixa(self._fabrica, self._ator, self).exec():
-            self.recarregar()
+        DialogoAbrirCaixa(self._fabrica, self._ator, self).exec()
+        # Mesmo cancelado: outro login pode ter aberto o caixa com o diálogo aberto.
+        self.recarregar()

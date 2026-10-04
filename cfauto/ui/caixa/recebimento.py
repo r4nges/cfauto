@@ -61,7 +61,7 @@ class DialogoRecebimento(QDialog):
             ator,
             "Nome, código, CPF ou celular — Enter",
             ao_escolher=self.definir_cliente,
-            ao_avisar=self._info.setText,
+            ao_avisar=self._avisar_busca,
         )
         self.valor = QLineEdit()
         self.forma = QComboBox()
@@ -92,6 +92,12 @@ class DialogoRecebimento(QDialog):
         layout.addWidget(botoes)
         self._ao_trocar_forma()
         self._busca.campo.setFocus()
+
+    def _avisar_busca(self, aviso: str) -> None:
+        # O aviso ocupa o rótulo do cliente: o cliente anterior deixa de valer, para que o
+        # que o rótulo mostra seja sempre quem será creditado.
+        self._cliente = None
+        self._info.setText(aviso)
 
     def definir_cliente(self, cliente_id: int) -> None:
         try:

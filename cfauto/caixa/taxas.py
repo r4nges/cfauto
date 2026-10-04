@@ -13,6 +13,7 @@ from cfauto.core.money import arredondar
 from cfauto.core.permissoes import Ator, Modulo, exigir_admin, exigir_modulo
 
 PCT_MAXIMO = Decimal(100)
+DIAS_MAXIMO = 365
 
 
 def _para_schema(taxa: TaxaPagamento) -> TaxaForma:
@@ -50,6 +51,8 @@ def atualizar_taxa(
         raise ValorInvalido("A taxa não pode passar de 100%.")
     if dias < 0:
         raise ValorInvalido("Os dias até a liquidação não podem ser negativos.")
+    if dias > DIAS_MAXIMO:
+        raise ValorInvalido(f"Os dias até a liquidação não podem passar de {DIAS_MAXIMO}.")
     taxa = _carregar(s, forma)
     if taxa is None:
         antes = None

@@ -36,7 +36,7 @@ from cfauto.caixa.schemas import (
 )
 from cfauto.caixa.sessao import sessao_aberta
 from cfauto.caixa.taxas import listar_taxas
-from cfauto.caixa.venda import registrar_venda
+from cfauto.caixa.venda import registrar_venda, vendas_da_sessao
 from cfauto.clientes.cadastro import obter_cliente
 from cfauto.clientes.schemas import FichaCliente
 from cfauto.clientes.validacao import formatar_saldo
@@ -183,10 +183,11 @@ class TelaPdv(QWidget):
         self.resultados.doubleClicked.connect(self._adicionar_resultado)
 
         self.carrinho = criar_tabela(_COLUNAS_CARRINHO)
+        # Sem AnyKeyPressed: com a célula do carrinho em foco, o código lido pelo leitor
+        # (ex.: "15") viraria a quantidade da linha em vez de buscar o produto.
         self.carrinho.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked
             | QAbstractItemView.EditTrigger.EditKeyPressed
-            | QAbstractItemView.EditTrigger.AnyKeyPressed
         )
         self.carrinho.itemChanged.connect(self._ao_editar_celula)
         remover = QPushButton("Remover item")
@@ -268,7 +269,8 @@ class TelaPdv(QWidget):
     # --- sessão e taxas -------------------------------------------------------------
 
     def recarregar(self) -> None:
-        """Cabeçalho da sessão e taxas; sem sessão aberta, avisa com `sessao_encerrada`."""
+        """Cabeçalho da sessão, taxas e preços do carrinho; sem sessão aberta, avisa com
+        `sessao_encerrada`."""
         with transacao(self._fabrica) as s:
             painel = sessao_aberta(s, self._ator)
             taxas = listar_taxas(s, self._ator)
@@ -281,7 +283,35 @@ class TelaPdv(QWidget):
             f"{painel.protocolo} · fundo {formatar_brl(painel.fundo_troco)}"
             f" · gaveta {formatar_brl(painel.gaveta)}"
         )
+        self._atualizar_precos()
         self._atualizar_totais()
+
+    def _atualizar_precos(self) -> None:
+        """Reprecifica o carrinho pelo cadastro: `registrar_venda` grava o preço do banco, e a
+        prévia tem de mostrar o mesmo. Avisa o que mudou e o que saiu de venda (sem modal)."""
+        if not self._itens:
+            return
+        with transacao(self._fabrica) as s:
+            vigentes = {(r.produto, r.id): r for r in self._cadastro_ativo(s)}
+        avisos: list[str] = []
+        for item in self._itens:
+            atual = vigentes.get((item.produto, item.id))
+            if atual is None:
+                avisos.append(f"{item.descricao} não está mais disponível para venda.")
+            elif atual.preco != item.preco_unit:
+                avisos.append(
+                    f"Preço de {item.descricao} mudou de {formatar_brl(item.preco_unit)}"
+                    f" para {formatar_brl(atual.preco)}."
+                )
+                item.preco_unit = atual.preco
+        if avisos:
+            self._preencher_carrinho()
+            self.mensagem.setText(" ".join(avisos))
+
+    def _cadastro_ativo(self, s: Session) -> list[_Resultado]:
+        return [_de_produto(p) for p in buscar_produtos(s, self._ator)] + [
+            _de_servico(sv) for sv in listar_servicos(s, self._ator)
+        ]
 
     # --- busca e carrinho ----------------------------------------------------------
 
@@ -368,6 +398,7 @@ class TelaPdv(QWidget):
         self.mensagem.clear()
         self._preencher_carrinho()
         self._atualizar_totais()
+        self.busca.setFocus()
 
     def _preencher_carrinho(self) -> None:
         self._preenchendo = True
@@ -410,16 +441,19 @@ class TelaPdv(QWidget):
         except ValorInvalido as erro:
             mostrar_erro(self, erro)
             self._preencher_carrinho()  # a célula volta ao valor anterior
+            self.busca.setFocus()
             return
         self._itens[linha].qtd = qtd
         self._preencher_carrinho()
         self._atualizar_totais()
+        self.busca.setFocus()
 
     def remover_item(self, linha: int) -> None:
         if 0 <= linha < len(self._itens):
             del self._itens[linha]
             self._preencher_carrinho()
             self._atualizar_totais()
+            self.busca.setFocus()
 
     # --- cliente --------------------------------------------------------------------
 
@@ -605,9 +639,17 @@ class TelaPdv(QWidget):
             except ErroDominio as erro:
                 mostrar_erro(self, erro)
                 return
+        total = self._total_gravado(venda_id)
         self.limpar()
-        self.mensagem.setText(f"Venda nº {venda_id} registrada.")
+        sufixo = "" if total is None else f" Total {formatar_brl(total)}."
+        self.mensagem.setText(f"Venda nº {venda_id} registrada.{sufixo}")
         self.recarregar()
+
+    def _total_gravado(self, venda_id: int) -> Decimal | None:
+        """Total a cobrar como o serviço gravou (`registrar_venda` devolve só o número)."""
+        with transacao(self._fabrica) as s:
+            linhas = vendas_da_sessao(s, self._ator)
+        return next((linha.cobrado for linha in linhas if linha.id == venda_id), None)
 
     def limpar(self) -> None:
         self._itens.clear()
@@ -622,6 +664,7 @@ class TelaPdv(QWidget):
         self.mensagem.clear()
         self._preencher_carrinho()
         self._ao_trocar_forma()
+        self.busca.setFocus()
 
     # --- diálogos do caixa ----------------------------------------------------------
 

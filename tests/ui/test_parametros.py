@@ -2,6 +2,7 @@
 
 from decimal import Decimal
 
+import pytest
 from PySide6.QtCore import Qt
 from sqlalchemy import func, select
 
@@ -13,6 +14,16 @@ from cfauto.core.db import transacao
 from cfauto.core.models import AuditLog
 from cfauto.ui import parametros as modulo_parametros
 from cfauto.ui.parametros import PaginaParametros
+
+
+@pytest.fixture(autouse=True)
+def _sem_dialogo_modal(monkeypatch):
+    """Um erro inesperado falha o teste em vez de abrir um QMessageBox modal que o travaria."""
+
+    def falhar(_pai, erro):
+        pytest.fail(f"erro mostrado ao usuário sem o teste esperar: {erro}")
+
+    monkeypatch.setattr(modulo_parametros, "mostrar_erro", falhar)
 
 
 def _admin(fabrica):
@@ -94,3 +105,19 @@ def test_parametros_sem_alteracao_nao_grava_nem_audita(qtbot, fabrica, relogio):
     pagina.salvar_taxas()
     assert pagina._mensagem.text() == "Nenhuma alteração."
     assert _auditorias(fabrica) == antes
+
+
+def test_parametros_dias_acima_do_teto_mostra_o_erro_do_dominio(
+    qtbot, fabrica, relogio, monkeypatch
+):
+    erros = []
+    monkeypatch.setattr(
+        modulo_parametros, "mostrar_erro", lambda _pai, erro: erros.append(str(erro))
+    )
+    admin = _admin(fabrica)
+    pagina = PaginaParametros(fabrica, admin)
+    qtbot.addWidget(pagina)
+    pagina.tabela_taxas.item(2, 2).setText("366")
+    pagina.salvar_taxas()
+    assert erros == ["Os dias até a liquidação não podem passar de 365."]
+    assert _taxas(fabrica, admin)[FormaPagamento.DEBITO].dias == 7

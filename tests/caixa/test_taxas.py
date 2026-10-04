@@ -58,11 +58,18 @@ def test_so_admin_altera(sessao, operador):
         (D("-0.01"), 7, "negativa"),
         (D("100.01"), 7, "100%"),
         (D("1.5"), -1, "dias"),
+        (D("1.5"), 366, "365"),
+        (D("1.5"), 10**9, "365"),
     ],
 )
 def test_valores_invalidos(sessao, admin, pct, dias, mensagem):
     with pytest.raises(ValorInvalido, match=mensagem):
         atualizar_taxa(sessao, admin, FormaPagamento.DEBITO, pct, dias, False)
+
+
+def test_dias_ate_o_teto_de_365_sao_aceitos(sessao, admin):
+    novo = atualizar_taxa(sessao, admin, FormaPagamento.CREDITO, D("3.5"), 365, False)
+    assert novo.dias == 365
 
 
 def test_crediario_nao_tem_taxa(sessao, admin):

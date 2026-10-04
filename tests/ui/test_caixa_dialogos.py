@@ -160,6 +160,35 @@ def test_recebimento_sem_cliente_mostra_erro(qtbot, fabrica, relogio, monkeypatc
     assert dlg.result() == 0
 
 
+def test_busca_sem_resultado_nao_credita_o_cliente_anterior(qtbot, fabrica, relogio, monkeypatch):
+    """O rótulo do cliente é o mesmo do aviso: o que ele mostra é quem será creditado."""
+    erros = _erros(monkeypatch, modulo_recebimento)
+    admin, operador, *_ = _loja(fabrica)
+    with transacao(fabrica) as s:
+        ana = criar_cliente_teste(s, admin)
+        lancar_manual(
+            s, admin, ana, TipoLancamento.DEBITO, Decimal("100"), MotivoLancamento.COMPRA_ANOTADA
+        )
+    dlg = DialogoRecebimento(fabrica, operador, perguntar=_nao_perguntar)
+    qtbot.addWidget(dlg)
+    dlg.definir_cliente(ana)
+    assert "Ana Souza" in dlg._info.text()
+    dlg._busca.campo.setText("zzz")
+    dlg._busca.campo.returnPressed.emit()
+    assert dlg._info.text() == "Nenhum cliente encontrado."
+    dlg.valor.setText("40")
+    dlg.salvar()
+    assert erros == ["Selecione o cliente."]
+    assert dlg.result() == 0
+    assert dlg.venda_id is None
+    assert _saldo(fabrica, admin, ana) == Decimal("100.00")
+    dlg._busca.campo.setText("ana")  # o caso feliz segue valendo depois de uma busca nova
+    dlg._busca.campo.returnPressed.emit()
+    dlg.salvar()
+    assert dlg.result() == 1
+    assert _saldo(fabrica, admin, ana) == Decimal("60.00")
+
+
 def test_fechamento_mostra_resumo_sangria_e_fecha(qtbot, fabrica, relogio):
     _, operador, produto_id, servico_id = _loja(fabrica)
     _vender(fabrica, operador, produto_id=produto_id)
@@ -475,4 +504,50 @@ def test_descrever_resumo_lista_formas_cancelamentos_e_totais():
         "Fundo de troco: R$ 100,00",
         "Dinheiro recebido: R$ 0,00",
         "Gaveta: R$ 100,00",
+    ]
+
+
+def test_descrever_resumo_mostra_cobrado_quando_difere_do_bruto_por_repasse():
+    zero = Decimal("0.00")
+    resumo = ResumoSessao(
+        fundo_troco=Decimal("100.00"),
+        vendas={
+            FormaPagamento.DEBITO: TotaisForma(
+                qtd=1,
+                bruto=Decimal("30.00"),
+                taxa=Decimal("0.45"),
+                liquido=Decimal("30.00"),
+                cobrado=Decimal("30.45"),
+            ),
+            FormaPagamento.PIX: TotaisForma(
+                qtd=1,
+                bruto=Decimal("10.00"),
+                taxa=zero,
+                liquido=Decimal("10.00"),
+                cobrado=Decimal("10.00"),
+            ),
+        },
+        recebimentos={
+            FormaPagamento.CREDITO: TotaisForma(
+                qtd=1,
+                bruto=Decimal("20.00"),
+                taxa=Decimal("0.70"),
+                liquido=Decimal("20.00"),
+                cobrado=Decimal("20.70"),
+            )
+        },
+        canceladas_qtd=0,
+        canceladas_bruto=zero,
+        total_vendido=Decimal("40.00"),
+        dinheiro=zero,
+        gaveta=Decimal("100.00"),
+    )
+    linhas = descrever_resumo(resumo).splitlines()
+    assert linhas[:6] == [
+        "Vendas:",
+        "  Débito: 1 · bruto R$ 30,00 · taxa R$ 0,45 · líquido R$ 30,00 · cobrado R$ 30,45",
+        "  PIX: 1 · bruto R$ 10,00 · taxa R$ 0,00 · líquido R$ 10,00",  # iguais: formato antigo
+        "Recebimentos de crediário:",
+        "  Crédito: 1 · bruto R$ 20,00 · taxa R$ 0,70 · líquido R$ 20,00 · cobrado R$ 20,70",
+        "Total vendido: R$ 40,00",
     ]
