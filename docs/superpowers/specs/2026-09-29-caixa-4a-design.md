@@ -141,7 +141,7 @@ Todos recebem `Session` e `Ator`, verificam permissão na entrada, rodam numa tr
 - `sugestao_fundo(s, ator) -> Decimal`: `valor_mantido` da última sessão FECHADA, ou 0.
 - `abrir_sessao(s, ator, fundo) -> PainelSessao`: `fundo ≥ 0`; já há ABERTA → `SessaoJaAberta`. Auditoria `abrir`/`sessao_caixa`.
 - `previa_fechamento(s, ator) -> ResumoSessao` (§3.3, sem gravar).
-- `fechar_sessao(s, ator, valor_mantido) -> ResumoSessao`: valida faixa, grava `fechada_*`, `valor_mantido`, `sangria`, `resumo_json`, `status = FECHADA`. Auditoria `fechar`. Qualquer usuário com PDV fecha, inclusive sessão aberta por outro.
+- `fechar_sessao(s, ator, valor_mantido) -> FechamentoSessao` (protocolo, `resumo: ResumoSessao`, `valor_mantido`, `sangria`): valida faixa, grava `fechada_*`, `valor_mantido`, `sangria`, `resumo_json`, `status = FECHADA`. Auditoria `fechar`. Qualquer usuário com PDV fecha, inclusive sessão aberta por outro.
 
 ### 4.2 Venda (`venda.py`) — módulo PDV
 
