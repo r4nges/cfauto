@@ -37,7 +37,7 @@ from cfauto.caixa.schemas import (
 from cfauto.caixa.sessao import sessao_aberta
 from cfauto.caixa.taxas import listar_taxas
 from cfauto.caixa.venda import registrar_venda
-from cfauto.clientes.cadastro import buscar_clientes, obter_cliente
+from cfauto.clientes.cadastro import obter_cliente
 from cfauto.clientes.schemas import FichaCliente
 from cfauto.clientes.validacao import formatar_saldo
 from cfauto.core import clock
@@ -56,6 +56,10 @@ from cfauto.estoque.models import Produto, Servico
 from cfauto.estoque.produtos import buscar_produtos
 from cfauto.estoque.servicos import listar_servicos
 from cfauto.ui.caixa.autorizacao import Autorizar, Perguntar, pedir_autorizacao, perguntar_padrao
+from cfauto.ui.caixa.fechamento import DialogoFechamento
+from cfauto.ui.caixa.formatos import BuscaCliente
+from cfauto.ui.caixa.recebimento import DialogoRecebimento
+from cfauto.ui.caixa.vendas_sessao import DialogoVendasSessao
 from cfauto.ui.comum import (
     criar_tabela,
     ler_decimal,
@@ -160,9 +164,17 @@ class TelaPdv(QWidget):
         fonte = self.cabecalho.font()
         fonte.setBold(True)
         self.cabecalho.setFont(fonte)
+        self.botao_receber = QPushButton("Receber crediário")
+        self.botao_receber.clicked.connect(self._receber)
+        self.botao_vendas = QPushButton("Vendas da sessão")
+        self.botao_vendas.clicked.connect(self._abrir_vendas)
+        self.botao_fechar = QPushButton("Fechar caixa")
+        self.botao_fechar.clicked.connect(self._fechar_caixa)
         topo = QHBoxLayout()
         topo.addWidget(self.cabecalho)
         topo.addStretch()
+        for botao in (self.botao_receber, self.botao_vendas, self.botao_fechar):
+            topo.addWidget(botao)
 
         self.busca = QLineEdit()
         self.busca.setPlaceholderText("EAN, código ou nome — Enter para buscar")
@@ -180,12 +192,14 @@ class TelaPdv(QWidget):
         remover = QPushButton("Remover item")
         remover.clicked.connect(lambda: self.remover_item(self.carrinho.currentRow()))
 
-        self.busca_cliente = QLineEdit()
-        self.busca_cliente.setPlaceholderText("Cliente: nome, código, CPF ou celular — Enter")
-        self.busca_cliente.returnPressed.connect(self._buscar_cliente)
-        self._clientes_encontrados = QComboBox()
-        self._clientes_encontrados.hide()
-        self._clientes_encontrados.activated.connect(self._escolher_cliente)
+        self._busca_cliente = BuscaCliente(
+            fabrica,
+            ator,
+            "Cliente: nome, código, CPF ou celular — Enter",
+            ao_escolher=self.definir_cliente,
+            ao_avisar=lambda aviso: self.mensagem.setText(aviso),
+        )
+        self.busca_cliente = self._busca_cliente.campo
         sem_cliente = QPushButton("Sem cliente")
         sem_cliente.clicked.connect(lambda: self.definir_cliente(None))
         self.painel_cliente = QLabel(SEM_CLIENTE)
@@ -217,7 +231,7 @@ class TelaPdv(QWidget):
 
         linha_cliente = QHBoxLayout()
         linha_cliente.addWidget(self.busca_cliente, 1)
-        linha_cliente.addWidget(self._clientes_encontrados)
+        linha_cliente.addWidget(self._busca_cliente.opcoes)
         linha_cliente.addWidget(sem_cliente)
         linha_desconto = QHBoxLayout()
         linha_desconto.addWidget(self.desconto)
@@ -409,32 +423,6 @@ class TelaPdv(QWidget):
 
     # --- cliente --------------------------------------------------------------------
 
-    def _buscar_cliente(self) -> None:
-        texto = self.busca_cliente.text().strip()
-        if not texto:
-            return
-        with transacao(self._fabrica) as s:
-            encontrados = buscar_clientes(s, self._ator, texto)
-        self._clientes_encontrados.clear()
-        self._clientes_encontrados.hide()
-        if not encontrados:
-            self.mensagem.setText("Nenhum cliente encontrado.")
-            return
-        if len(encontrados) == 1:
-            self.busca_cliente.clear()
-            self.definir_cliente(encontrados[0].id)
-            return
-        for cliente in encontrados:
-            self._clientes_encontrados.addItem(f"{cliente.codigo} — {cliente.nome}", cliente.id)
-        self._clientes_encontrados.show()
-
-    def _escolher_cliente(self, indice: int) -> None:
-        cliente_id = self._clientes_encontrados.itemData(indice)
-        self._clientes_encontrados.hide()
-        self.busca_cliente.clear()
-        if cliente_id is not None:
-            self.definir_cliente(int(cliente_id))
-
     def definir_cliente(self, cliente_id: int | None) -> None:
         if cliente_id is None:
             self._cliente = None
@@ -625,8 +613,7 @@ class TelaPdv(QWidget):
         self._itens.clear()
         self._mostrar_resultados([])
         self.busca.clear()
-        self.busca_cliente.clear()
-        self._clientes_encontrados.hide()
+        self._busca_cliente.limpar()
         self.desconto.clear()
         self.tipo_desconto.setCurrentIndex(0)
         self.recebido.clear()
@@ -635,6 +622,28 @@ class TelaPdv(QWidget):
         self.mensagem.clear()
         self._preencher_carrinho()
         self._ao_trocar_forma()
+
+    # --- diálogos do caixa ----------------------------------------------------------
+
+    def _receber(self) -> None:
+        if DialogoRecebimento(self._fabrica, self._ator, self, perguntar=self._perguntar).exec():
+            self.mensagem.setText("Recebimento registrado.")
+            self.recarregar()
+
+    def _abrir_vendas(self) -> None:
+        DialogoVendasSessao(self._fabrica, self._ator, self, autorizar=self._autorizar).exec()
+        self.recarregar()
+
+    def _fechar_caixa(self) -> None:
+        try:
+            dialogo = DialogoFechamento(self._fabrica, self._ator, self, perguntar=self._perguntar)
+        except ErroDominio as erro:  # caixa já fechado por outro login
+            mostrar_erro(self, erro)
+            self.sessao_encerrada.emit()
+            return
+        if dialogo.exec():
+            self.limpar()
+            self.sessao_encerrada.emit()
 
     # --- diálogos padrão ------------------------------------------------------------
 
