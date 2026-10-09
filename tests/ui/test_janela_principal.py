@@ -68,6 +68,19 @@ def test_botao_de_menu_recolhe_e_mostra_navegacao(qtbot, fabrica):
     assert janela.navegacao_visivel()
 
 
+def test_logo_ocupa_a_barra_lateral_e_some_com_o_menu(qtbot, fabrica):
+    ator = Ator(1, "Dono", "dono", True, frozenset())
+    janela = JanelaPrincipal(fabrica, ator, _estado(100))
+    qtbot.addWidget(janela)
+    janela.show()
+    assert janela.logo.renderer().isValid()
+    assert janela.logo.isVisible()
+    janela.acao_menu.trigger()
+    assert not janela.logo.isVisible()
+    janela.acao_menu.trigger()
+    assert janela.logo.isVisible()
+
+
 def test_aviso_de_licenca_perto_do_fim(qtbot, fabrica):
     ator = Ator(1, "Dono", "dono", True, frozenset())
     janela = JanelaPrincipal(fabrica, ator, _estado(10))

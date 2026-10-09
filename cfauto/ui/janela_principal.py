@@ -1,8 +1,11 @@
 from collections.abc import Callable
+from pathlib import Path
 
-from PySide6.QtCore import Signal
-from PySide6.QtGui import QAction, QCloseEvent
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QAction, QCloseEvent, QPalette
+from PySide6.QtSvgWidgets import QSvgWidget
 from PySide6.QtWidgets import (
+    QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -10,6 +13,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QStackedWidget,
     QToolBar,
+    QVBoxLayout,
     QWidget,
 )
 from sqlalchemy.orm import Session, sessionmaker
@@ -26,6 +30,9 @@ from cfauto.ui.historico.tela import TelaHistorico
 DIAS_AVISO_LICENCA = 15
 LARGURA_NAVEGACAO = 240
 FONTE_NAVEGACAO_PT = 12
+LADO_LOGO = 120
+MARGEM_LOGO = 14
+ARQUIVO_LOGO = Path(__file__).parent / "recursos" / "logo.svg"
 
 # Módulos com tela pronta; os demais continuam "em construção".
 FabricaPagina = Callable[[sessionmaker[Session], Ator], QWidget]
@@ -81,18 +88,30 @@ class JanelaPrincipal(QMainWindow):
         self.addToolBar(barra)
 
         self._navegacao = QListWidget()
-        self._navegacao.setFixedWidth(LARGURA_NAVEGACAO)
+        self._navegacao.setFrameShape(QFrame.Shape.NoFrame)
         self._navegacao.setSpacing(4)
         fonte = self._navegacao.font()
         fonte.setPointSize(FONTE_NAVEGACAO_PT)
         self._navegacao.setFont(fonte)
+        self.logo = QSvgWidget(str(ARQUIVO_LOGO))
+        self.logo.setFixedSize(LADO_LOGO, LADO_LOGO)
+        # Um só painel (moldura e fundo da lista) com o logo no espaço vazio embaixo.
+        self._lateral = QFrame()
+        self._lateral.setFrameShape(QFrame.Shape.StyledPanel)
+        self._lateral.setBackgroundRole(QPalette.ColorRole.Base)
+        self._lateral.setAutoFillBackground(True)
+        self._lateral.setFixedWidth(LARGURA_NAVEGACAO)
+        lateral = QVBoxLayout(self._lateral)
+        lateral.setContentsMargins(0, 0, 0, MARGEM_LOGO)
+        lateral.addWidget(self._navegacao, 1)
+        lateral.addWidget(self.logo, 0, Qt.AlignmentFlag.AlignHCenter)
         self._paginas = QStackedWidget()
         self._navegacao.currentRowChanged.connect(self._ao_trocar_linha)
         self.configuracoes: PaginaConfiguracoes | None = None
 
         central = QWidget()
         layout = QHBoxLayout(central)
-        layout.addWidget(self._navegacao)
+        layout.addWidget(self._lateral)
         layout.addWidget(self._paginas, 1)
         self.setCentralWidget(central)
 
@@ -150,10 +169,10 @@ class JanelaPrincipal(QMainWindow):
         self._paginas.setCurrentWidget(self.configuracoes)
 
     def navegacao_visivel(self) -> bool:
-        return not self._navegacao.isHidden()
+        return not self._lateral.isHidden()
 
     def alternar_navegacao(self) -> None:
-        self._navegacao.setVisible(self._navegacao.isHidden())
+        self._lateral.setVisible(self._lateral.isHidden())
 
     def fechar_sessao(self) -> None:
         """Fecha a janela sem emitir `encerrar` (logout ou cancelamento do bloqueio)."""
