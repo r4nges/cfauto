@@ -42,6 +42,7 @@ def criar_tabela(colunas: list[str]) -> QTableWidget:
     tabela.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
     tabela.horizontalHeader().setStretchLastSection(True)
     tabela.verticalHeader().setVisible(False)
+    tabela.setAlternatingRowColors(True)
     return tabela
 
 

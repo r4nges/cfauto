@@ -56,6 +56,7 @@ class TelaAuditoria(QWidget):
         filtros.addWidget(botao)
 
         self.tabela = QTableWidget(0, len(_COLUNAS))
+        self.tabela.setAlternatingRowColors(True)
         self.tabela.setHorizontalHeaderLabels(_COLUNAS)
         self.tabela.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tabela.horizontalHeader().setStretchLastSection(True)

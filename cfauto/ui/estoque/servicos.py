@@ -58,6 +58,7 @@ class DialogoServico(QDialog):
         )
         self.preco_rotulo = QLabel()
         self.materiais = QTableWidget(0, len(_COLUNAS_MATERIAIS))
+        self.materiais.setAlternatingRowColors(True)
         self.materiais.setHorizontalHeaderLabels(_COLUNAS_MATERIAIS)
         self.materiais.horizontalHeader().setStretchLastSection(True)
         if servico is None:

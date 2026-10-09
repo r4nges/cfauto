@@ -176,7 +176,7 @@ class DialogoConferencia(QDialog):
             f"emissão {nota.data_emissao:%d/%m/%Y} — total {formatar_brl(nota.valor_total)}"
         )
         self.avisos = QLabel("<br>".join(escape(aviso) for aviso in conferencia.avisos))
-        self.avisos.setStyleSheet("color: #b9770e;")
+        self.avisos.setProperty("papel", "aviso")
         self.avisos.setVisible(bool(conferencia.avisos))
         self._estados = [_estado_inicial(sugestao) for sugestao in conferencia.itens]
         self._combos_acao: list[QComboBox] = []
@@ -185,6 +185,7 @@ class DialogoConferencia(QDialog):
         self.botao_confirmar = QPushButton("Confirmar entrada")
         self.botao_confirmar.clicked.connect(self.confirmar)
         self.tabela = QTableWidget(len(self._estados), len(_COLUNAS_CONFERENCIA))
+        self.tabela.setAlternatingRowColors(True)
         self.tabela.setHorizontalHeaderLabels(_COLUNAS_CONFERENCIA)
         self.tabela.verticalHeader().setVisible(False)
         self._montar_linhas()

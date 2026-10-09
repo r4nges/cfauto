@@ -136,6 +136,7 @@ class TelaUsuarios(QWidget):
         self._usuarios: list[Usuario] = []
 
         self.tabela = QTableWidget(0, len(_COLUNAS))
+        self.tabela.setAlternatingRowColors(True)
         self.tabela.setHorizontalHeaderLabels(_COLUNAS)
         self.tabela.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tabela.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)

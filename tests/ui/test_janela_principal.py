@@ -1,6 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
+from PySide6.QtWidgets import QFrame, QListWidget, QToolBar
+
 from cfauto.auth.service import NovoUsuario, criar_usuario
 from cfauto.caixa.sessao import fechar_sessao
 from cfauto.core.db import transacao
@@ -12,6 +14,7 @@ from cfauto.ui.clientes.tela import TelaClientes
 from cfauto.ui.historico.tela import TelaHistorico
 from cfauto.ui.janela_principal import JanelaPrincipal
 from cfauto.ui.parametros import PaginaParametros
+from cfauto.ui.tema import aplicar_tema
 from tests.fabricas import abrir_caixa
 
 
@@ -166,3 +169,27 @@ def test_historico_e_pdv_recarregam_ao_navegar_ate_eles(qtbot, fabrica, relogio)
     assert historico.sessoes.rowCount() == 1
     janela.selecionar_modulo(0)
     assert caixa.currentWidget() is caixa.pdv
+
+
+def test_casca_tem_os_nomes_que_o_tema_usa(qtbot, fabrica):
+    ator = Ator(1, "Dono", "dono", True, frozenset())
+    janela = JanelaPrincipal(fabrica, ator, _estado(100))
+    qtbot.addWidget(janela)
+    assert janela.findChild(QToolBar).objectName() == "faixa"
+    assert janela.findChild(QFrame, "lateral") is not None
+    assert janela.findChild(QListWidget, "navegacao") is not None
+    assert janela.aviso_licenca.property("papel") == "aviso"
+    assert janela.aviso_licenca.styleSheet() == ""
+
+
+def test_constroi_todas_as_paginas_com_o_tema_aplicado(qtbot, fabrica, tema_isolado):
+    aplicar_tema(tema_isolado)
+    ator = Ator(1, "Dono", "dono", True, frozenset())
+    janela = JanelaPrincipal(fabrica, ator, _estado(5))
+    qtbot.addWidget(janela)
+    janela.show()
+    for linha in range(len(janela.titulos_navegacao())):
+        janela.selecionar_modulo(linha)
+    janela.acao_configuracoes.trigger()
+    assert janela.pagina_atual() is janela.configuracoes
+    assert janela.aviso_licenca.text().strip() == "Licença expira em 5 dias"

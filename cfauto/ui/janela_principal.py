@@ -2,7 +2,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction, QCloseEvent, QPalette
+from PySide6.QtGui import QAction, QCloseEvent
 from PySide6.QtSvgWidgets import QSvgWidget
 from PySide6.QtWidgets import (
     QFrame,
@@ -26,10 +26,10 @@ from cfauto.ui.comum import PaginaEmConstrucao
 from cfauto.ui.configuracoes import PaginaConfiguracoes
 from cfauto.ui.estoque.pagina import PaginaEstoque
 from cfauto.ui.historico.tela import TelaHistorico
+from cfauto.ui.tema import CLARO
 
 DIAS_AVISO_LICENCA = 15
 LARGURA_NAVEGACAO = 240
-FONTE_NAVEGACAO_PT = 12
 LADO_LOGO = 120
 MARGEM_LOGO = 14
 ARQUIVO_LOGO = Path(__file__).parent / "recursos" / "logo.svg"
@@ -64,13 +64,14 @@ class JanelaPrincipal(QMainWindow):
 
         barra = QToolBar("Sessão")
         barra.setMovable(False)
+        barra.setObjectName("faixa")
         self.acao_menu = QAction("☰", self)
         self.acao_menu.setToolTip("Mostrar/ocultar o menu")
         self.acao_menu.triggered.connect(self.alternar_navegacao)
         barra.addAction(self.acao_menu)
         barra.addWidget(QLabel(f"  {ator.nome}  "))
         self.aviso_licenca = QLabel("")
-        self.aviso_licenca.setStyleSheet("color: #b9770e; font-weight: bold;")
+        self.aviso_licenca.setProperty("papel", "aviso")
         dias = estado_licenca.dias_restantes
         if dias is not None and dias <= DIAS_AVISO_LICENCA:
             self.aviso_licenca.setText(f"  Licença expira em {dias} dias  ")
@@ -88,18 +89,17 @@ class JanelaPrincipal(QMainWindow):
         self.addToolBar(barra)
 
         self._navegacao = QListWidget()
+        self._navegacao.setObjectName("navegacao")
         self._navegacao.setFrameShape(QFrame.Shape.NoFrame)
         self._navegacao.setSpacing(4)
         fonte = self._navegacao.font()
-        fonte.setPointSize(FONTE_NAVEGACAO_PT)
+        fonte.setPointSize(CLARO.fonte_navegacao_pt)
         self._navegacao.setFont(fonte)
         self.logo = QSvgWidget(str(ARQUIVO_LOGO))
         self.logo.setFixedSize(LADO_LOGO, LADO_LOGO)
-        # Um só painel (moldura e fundo da lista) com o logo no espaço vazio embaixo.
+        # Um só painel (fundo e borda vêm do tema) com o logo no espaço vazio embaixo.
         self._lateral = QFrame()
-        self._lateral.setFrameShape(QFrame.Shape.StyledPanel)
-        self._lateral.setBackgroundRole(QPalette.ColorRole.Base)
-        self._lateral.setAutoFillBackground(True)
+        self._lateral.setObjectName("lateral")
         self._lateral.setFixedWidth(LARGURA_NAVEGACAO)
         lateral = QVBoxLayout(self._lateral)
         lateral.setContentsMargins(0, 0, 0, MARGEM_LOGO)

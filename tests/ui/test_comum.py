@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QLineEdit
 from cfauto.core.errors import ValorInvalido
 from cfauto.ui.comum import (
     aplicar_mascara_data,
+    criar_tabela,
     formatar_data_digitada,
     ler_decimal,
     ler_decimal_opcional,
@@ -102,3 +103,7 @@ def test_mascara_mantem_o_cursor_ao_editar_no_meio(qtbot):
     qtbot.keyClicks(campo, "29")
     assert campo.text() == "29/15/03"
     assert campo.cursorPosition() == 2
+
+
+def test_criar_tabela_liga_a_zebra(qapp):
+    assert criar_tabela(["A", "B"]).alternatingRowColors() is True
