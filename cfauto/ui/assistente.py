@@ -74,6 +74,7 @@ class _PaginaEmpresa(QWizardPage):
     def __init__(self) -> None:
         super().__init__()
         self.setTitle("Empresa")
+        self.setSubTitle("Informe os dados da empresa.")
         self.nome, self.cnpj = QLineEdit(), QLineEdit()
         form = QFormLayout(self)
         form.addRow("Nome da empresa", self.nome)
