@@ -2,6 +2,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QVBoxLayout,
@@ -13,6 +14,9 @@ from cfauto.auth.service import autenticar
 from cfauto.core.db import transacao
 from cfauto.core.errors import ErroDominio
 from cfauto.core.permissoes import Ator
+from cfauto.ui.tema import PainelMarca
+
+TAMANHO_MINIMO = (580, 270)
 
 
 class DialogoLogin(QDialog):
@@ -27,7 +31,10 @@ class DialogoLogin(QDialog):
         self._fabrica = fabrica
         self.ator: Ator | None = None
         self.setWindowTitle("CFAUTO — Entrar" if login_fixo is None else "CFAUTO — Tela bloqueada")
+        self.setMinimumSize(*TAMANHO_MINIMO)
 
+        self.rotulo_titulo = QLabel("Entrar" if login_fixo is None else "Tela bloqueada")
+        self.rotulo_titulo.setProperty("papel", "titulo")
         self.campo_login = QLineEdit()
         self.campo_senha = QLineEdit()
         self.campo_senha.setEchoMode(QLineEdit.EchoMode.Password)
@@ -35,9 +42,10 @@ class DialogoLogin(QDialog):
             self.campo_login.setText(login_fixo)
             self.campo_login.setEnabled(False)
         self.rotulo_erro = QLabel("")
-        self.rotulo_erro.setStyleSheet("color: #c0392b;")
+        self.rotulo_erro.setProperty("papel", "erro")
 
         form = QFormLayout()
+        form.setVerticalSpacing(10)
         form.addRow("Login", self.campo_login)
         form.addRow("Senha", self.campo_senha)
         botoes = QDialogButtonBox(
@@ -47,10 +55,20 @@ class DialogoLogin(QDialog):
         botoes.accepted.connect(self.entrar)
         botoes.rejected.connect(self.reject)
 
-        layout = QVBoxLayout(self)
-        layout.addLayout(form)
-        layout.addWidget(self.rotulo_erro)
-        layout.addWidget(botoes)
+        coluna = QVBoxLayout()
+        coluna.setContentsMargins(26, 22, 26, 20)
+        coluna.addWidget(self.rotulo_titulo)
+        coluna.addSpacing(8)
+        coluna.addLayout(form)
+        coluna.addWidget(self.rotulo_erro)
+        coluna.addStretch(1)
+        coluna.addWidget(botoes)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(PainelMarca())
+        layout.addLayout(coluna, 1)
         (self.campo_senha if login_fixo else self.campo_login).setFocus()
 
     def entrar(self) -> None:

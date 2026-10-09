@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPlainTextEdit,
@@ -15,6 +16,9 @@ from cfauto.core.db import transacao
 from cfauto.core.errors import LicencaInvalida
 from cfauto.licenca import service
 from cfauto.licenca.maquina import id_maquina
+from cfauto.ui.tema import PainelMarca
+
+TAMANHO_MINIMO = (640, 360)
 
 
 class DialogoLicenca(QDialog):
@@ -31,7 +35,10 @@ class DialogoLicenca(QDialog):
         self._publica = publica
         self.estado = estado
         self.setWindowTitle("CFAUTO — Licença")
+        self.setMinimumSize(*TAMANHO_MINIMO)
 
+        self.rotulo_titulo = QLabel("Ativar licença")
+        self.rotulo_titulo.setProperty("papel", "titulo")
         motivo = QLabel(estado.mensagem)
         motivo.setWordWrap(True)
         campo_maquina = QLineEdit(id_maquina())
@@ -39,9 +46,10 @@ class DialogoLicenca(QDialog):
         self.campo_chave = QPlainTextEdit()
         self.campo_chave.setPlaceholderText("Cole aqui a chave de licença")
         self.rotulo_erro = QLabel("")
-        self.rotulo_erro.setStyleSheet("color: #c0392b;")
+        self.rotulo_erro.setProperty("papel", "erro")
 
         form = QFormLayout()
+        form.setVerticalSpacing(10)
         form.addRow("ID desta máquina", campo_maquina)
         form.addRow("Chave", self.campo_chave)
         botoes = QDialogButtonBox(
@@ -52,11 +60,21 @@ class DialogoLicenca(QDialog):
         botoes.accepted.connect(self.instalar)
         botoes.rejected.connect(self.reject)
 
-        layout = QVBoxLayout(self)
-        layout.addWidget(motivo)
-        layout.addLayout(form)
-        layout.addWidget(self.rotulo_erro)
-        layout.addWidget(botoes)
+        coluna = QVBoxLayout()
+        coluna.setContentsMargins(26, 22, 26, 20)
+        coluna.addWidget(self.rotulo_titulo)
+        coluna.addSpacing(4)
+        coluna.addWidget(motivo)
+        coluna.addSpacing(8)
+        coluna.addLayout(form)
+        coluna.addWidget(self.rotulo_erro)
+        coluna.addWidget(botoes)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(PainelMarca())
+        layout.addLayout(coluna, 1)
 
     def instalar(self) -> None:
         try:
