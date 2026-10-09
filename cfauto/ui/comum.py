@@ -5,6 +5,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QTableWidget,
     QTableWidgetItem,
@@ -51,6 +52,43 @@ def preencher_tabela(tabela: QTableWidget, linhas: list[list[str]]) -> None:
         for j, valor in enumerate(valores):
             tabela.setItem(i, j, QTableWidgetItem(valor))
     tabela.resizeColumnsToContents()
+
+
+_SO_DIGITOS_E_BARRAS = re.compile(r"[\d/]*")
+
+
+def formatar_data_digitada(texto: str) -> str:
+    """Põe as barras de dd/mm/aaaa conforme se digita: '1503' → '15/03'.
+
+    Sem barra sobrando no fim (senão o Backspace não anda); texto com outros caracteres,
+    como uma data ISO colada, fica como está.
+    """
+    if not _SO_DIGITOS_E_BARRAS.fullmatch(texto):
+        return texto
+    digitos = "".join(c for c in texto if c.isdigit())[:8]
+    partes = (digitos[:2], digitos[2:4], digitos[4:])
+    return "/".join(parte for parte in partes if parte)
+
+
+def aplicar_mascara_data(campo: QLineEdit) -> None:
+    """Formata o campo como dd/mm/aaaa enquanto a pessoa digita, mantendo o cursor."""
+
+    def formatar(texto: str) -> None:
+        novo = formatar_data_digitada(texto)
+        if novo == texto:
+            return
+        digitos_antes = sum(c.isdigit() for c in texto[: campo.cursorPosition()])
+        campo.setText(novo)
+        posicao = 0
+        for i, caractere in enumerate(novo, start=1):
+            if digitos_antes == 0:
+                break
+            if caractere.isdigit():
+                digitos_antes -= 1
+                posicao = i
+        campo.setCursorPosition(posicao)
+
+    campo.textEdited.connect(formatar)
 
 
 _NOTACAO_CIENTIFICA = re.compile(r"[eE]")

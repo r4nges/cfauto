@@ -87,6 +87,19 @@ def test_celular_e_cpf_sao_formatados_ao_sair_do_campo(qtbot, fabrica, relogio):
     assert dlg.celular.text() == "123"  # inválido fica como digitado; o erro vem ao salvar
 
 
+def test_nascimento_ganha_as_barras_sozinho_ao_digitar(qtbot, fabrica, relogio):
+    admin, _ = _atores(fabrica)
+    dlg = DialogoCliente(fabrica, admin)
+    qtbot.addWidget(dlg)
+    dlg.nome.setText("Ana Souza")
+    dlg.celular.setText("11987654321")
+    qtbot.keyClicks(dlg.nascimento, "01051990")
+    assert dlg.nascimento.text() == "01/05/1990"
+    dlg.salvar(confirmar=_nao_perguntar)
+    with transacao(fabrica) as s:
+        assert obter_cliente(s, admin, dlg.cliente_id).dados.nascimento == date(1990, 5, 1)
+
+
 def test_erro_de_validacao_mostra_erro_e_nao_fecha(qtbot, fabrica, relogio, monkeypatch):
     erros = []
     monkeypatch.setattr(modulo_dialogo, "mostrar_erro", lambda _pai, erro: erros.append(str(erro)))

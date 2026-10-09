@@ -47,7 +47,7 @@ from cfauto.core.db import transacao
 from cfauto.core.errors import ErroDominio, ValorInvalido
 from cfauto.core.money import formatar_numero
 from cfauto.core.permissoes import Ator
-from cfauto.ui.comum import ler_decimal, mostrar_erro
+from cfauto.ui.comum import aplicar_mascara_data, ler_decimal, mostrar_erro
 
 
 def _texto_duplicados(duplicados: list[ResumoCliente]) -> str:
@@ -83,6 +83,7 @@ class DialogoCliente(QDialog):
             "" if dados.nascimento is None else f"{dados.nascimento:%d/%m/%Y}"
         )
         self.nascimento.setPlaceholderText("dd/mm/aaaa")
+        aplicar_mascara_data(self.nascimento)
         self.sexo = QComboBox()
         self.sexo.addItem("Não informado", None)
         for sexo in Sexo:
