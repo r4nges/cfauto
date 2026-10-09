@@ -5,6 +5,13 @@ from PySide6.QtGui import QColor, QPalette
 from cfauto.ui.tema import CLARO, aplicar, aplicar_tema
 
 
+def _partir_de_estilo_nao_fusion(qapp) -> None:
+    """O estilo padrão do offscreen já é Fusion: sem este pré-ajuste, afirmar "fusion" depois
+    de `aplicar_tema` passaria mesmo sem o passo do estilo. A fixture restaura o estilo."""
+    qapp.setStyle("Windows")
+    assert qapp.style().objectName().lower() == "windows"
+
+
 def _estilo_base(qapp) -> str:
     """Com folha de estilo, `style()` é o QStyleSheetStyle (objectName vazio); sem a folha,
     volta o estilo base. Chamar por último: limpa a folha da aplicação."""
@@ -13,6 +20,7 @@ def _estilo_base(qapp) -> str:
 
 
 def test_aplica_fusion_paleta_fonte_e_folha(tema_isolado):
+    _partir_de_estilo_nao_fusion(tema_isolado)
     aplicar_tema(tema_isolado)
     assert tema_isolado.styleSheet()
     paleta = tema_isolado.palette()
@@ -34,6 +42,7 @@ def test_arquivo_de_traducao_vai_junto_no_repo():
 
 def test_sem_arquivo_de_traducao_nao_levanta_e_loga(tema_isolado, monkeypatch, tmp_path, caplog):
     monkeypatch.setattr(aplicar, "_pastas_traducao", lambda: [tmp_path])
+    _partir_de_estilo_nao_fusion(tema_isolado)
     with caplog.at_level(logging.WARNING, logger="cfauto.ui"):
         aplicar_tema(tema_isolado)
     assert any("qtbase_pt_BR.qm" in r.getMessage() for r in caplog.records)
@@ -44,6 +53,7 @@ def test_sem_seta_do_combo_loga_e_aplica_a_folha_mesmo_assim(
     tema_isolado, monkeypatch, tmp_path, caplog
 ):
     monkeypatch.setattr(aplicar, "ARQUIVO_SETA_BAIXO", tmp_path / "seta-baixo.png")
+    _partir_de_estilo_nao_fusion(tema_isolado)
     with caplog.at_level(logging.WARNING, logger="cfauto.ui"):
         aplicar_tema(tema_isolado)
     assert any("seta-baixo.png" in r.getMessage() for r in caplog.records)
