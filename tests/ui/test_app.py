@@ -49,9 +49,9 @@ _SCRIPT_APARENCIA = """
 import sys
 from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import QApplication
-from cfauto.ui.app import configurar_aparencia
+from cfauto.ui.tema import aplicar_tema
 qapp = QApplication(sys.argv)
-configurar_aparencia(qapp)
+aplicar_tema(qapp)
 print(qapp.palette().color(QPalette.ColorRole.WindowText).lightness())
 """
 

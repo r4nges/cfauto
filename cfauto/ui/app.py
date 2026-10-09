@@ -4,7 +4,6 @@ import logging
 import sys
 from types import TracebackType
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from cfauto.core import config
@@ -22,6 +21,7 @@ from cfauto.ui.inatividade import MonitorInatividade
 from cfauto.ui.janela_principal import JanelaPrincipal
 from cfauto.ui.licenca import DialogoLicenca
 from cfauto.ui.login import DialogoLogin
+from cfauto.ui.tema import aplicar_tema
 
 log = logging.getLogger("cfauto.ui")
 MINUTOS_INATIVIDADE_PADRAO = 5
@@ -37,12 +37,6 @@ def tratar_excecao_nao_tratada(
     log.critical("erro não tratado", exc_info=(tipo, valor, tb))
     if QApplication.instance() is not None and isinstance(valor, Exception):
         mostrar_erro(None, valor)
-
-
-def configurar_aparencia(qapp: QApplication) -> None:
-    """Força o esquema claro: o modo escuro do Windows deixa rótulos invisíveis
-    enquanto não houver tema próprio (estilo base, adiado)."""
-    qapp.styleHints().setColorScheme(Qt.ColorScheme.Light)
 
 
 class Aplicacao:
@@ -155,7 +149,7 @@ def main(argv: list[str] | None = None) -> int:
     sys.excepthook = tratar_excecao_nao_tratada
     qapp = QApplication(sys.argv)
     qapp.setApplicationName("CFAUTO")
-    configurar_aparencia(qapp)
+    aplicar_tema(qapp)
     qapp.setQuitOnLastWindowClosed(False)
     try:
         ambiente = inicializar(caminhos)

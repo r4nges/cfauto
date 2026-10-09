@@ -1,6 +1,8 @@
 import pytest
 from PySide6.QtGui import QFont, QPalette
 
+from cfauto.ui.tema import aplicar
+
 
 @pytest.fixture
 def tema_isolado(qapp):
@@ -15,3 +17,6 @@ def tema_isolado(qapp):
     qapp.setPalette(paleta)
     qapp.setFont(fonte)
     qapp.styleHints().unsetColorScheme()
+    if aplicar._tradutor is not None:
+        qapp.removeTranslator(aplicar._tradutor)
+        aplicar._tradutor = None
