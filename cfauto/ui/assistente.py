@@ -17,6 +17,7 @@ from cfauto.licenca.maquina import id_maquina
 from cfauto.licenca.service import validar
 from cfauto.sistema.primeira_execucao import DadosPrimeiraExecucao, concluir
 from cfauto.ui.comum import mostrar_erro
+from cfauto.ui.tema import pixmap_marca
 
 
 class _PaginaAdmin(QWizardPage):
@@ -79,6 +80,12 @@ class _PaginaEmpresa(QWizardPage):
         form.addRow("CNPJ (opcional)", self.cnpj)
 
 
+LARGURA_JANELA = 640
+ALTURA_JANELA = 440
+LARGURA_MARCA = 210
+ALTURA_MARCA = 314  # altura útil entre o cabeçalho e a barra de botões (conferida no Windows)
+
+
 class AssistentePrimeiraExecucao(QWizard):
     def __init__(
         self,
@@ -92,6 +99,11 @@ class AssistentePrimeiraExecucao(QWizard):
         self._publica = publica
         self.ator: Ator | None = None
         self.setWindowTitle("CFAUTO — Primeira execução")
+        self.setWizardStyle(QWizard.WizardStyle.ModernStyle)
+        self.setFixedSize(LARGURA_JANELA, ALTURA_JANELA)
+        self.setPixmap(
+            QWizard.WizardPixmap.WatermarkPixmap, pixmap_marca(LARGURA_MARCA, ALTURA_MARCA)
+        )
         self._admin = _PaginaAdmin()
         self._licenca = _PaginaLicenca(publica)
         self._empresa = _PaginaEmpresa()
