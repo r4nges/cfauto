@@ -1,5 +1,7 @@
 """Aba Produtos do Estoque: lista, cadastro, ajuste de estoque e movimentações."""
 
+from decimal import Decimal
+
 from PySide6.QtCore import QModelIndex
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
@@ -19,7 +21,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from cfauto.core.db import transacao
 from cfauto.core.errors import ErroDominio
-from cfauto.core.money import formatar_brl, formatar_numero, formatar_pct, formatar_qtd
+from cfauto.core.money import arredondar, formatar_brl, formatar_numero, formatar_pct, formatar_qtd
 from cfauto.core.permissoes import Ator
 from cfauto.estoque.models import (
     TITULOS_DESTINO,
@@ -148,6 +150,10 @@ class DialogoProduto(QDialog):
             self.destino.setCurrentIndex(list(Destino).index(produto.destino))
         self.estoque_inicial = QLineEdit("0")
         self.fracionado_rotulo = QLabel()
+        # Markup % sobre o custo por unidade; o preço de venda é a fonte da verdade (não grava).
+        self.markup = QLineEdit()
+        self.markup.textEdited.connect(self._markup_editado)
+        self._markup_em_edicao = False
         self.margem_rotulo = QLabel()
         for campo in (self.fator, self.preco_entrada, self.preco_venda):
             campo.textChanged.connect(self._atualizar_calculos)
@@ -161,6 +167,7 @@ class DialogoProduto(QDialog):
         form.addRow("Preço de entrada (embalagem)", self.preco_entrada)
         form.addRow("Custo por unidade", self.fracionado_rotulo)
         form.addRow("Preço de venda", self.preco_venda)
+        form.addRow("Markup (%)", self.markup)
         form.addRow("Margem", self.margem_rotulo)
         form.addRow("Preço promocional", self.preco_promocional)
         form.addRow("Estoque mínimo", self.estoque_minimo)
@@ -184,6 +191,12 @@ class DialogoProduto(QDialog):
         self.minimo_manual.setChecked(True)
 
     def _atualizar_calculos(self) -> None:
+        self._atualizar_custo_e_margem()
+        # Enquanto a pessoa digita o markup, ele não é reescrito a partir do preço que calculou.
+        if not self._markup_em_edicao:
+            self._atualizar_markup()
+
+    def _atualizar_custo_e_margem(self) -> None:
         try:
             simulado: Produto | None = Produto(
                 fator=ler_decimal(self.fator.text(), "Fator"),
@@ -199,6 +212,47 @@ class DialogoProduto(QDialog):
         self.fracionado_rotulo.setText(formatar_brl(simulado.preco_fracionado))
         margem = simulado.margem
         self.margem_rotulo.setText("—" if margem is None else formatar_pct(margem))
+
+    def _custo_unitario(self) -> Decimal | None:
+        """Custo por unidade; None enquanto fator ou preço de entrada não permitem calcular."""
+        try:
+            fator = ler_decimal(self.fator.text(), "Fator")
+            entrada = ler_decimal(self.preco_entrada.text(), "Preço de entrada")
+        except ErroDominio:
+            return None
+        return entrada / fator if fator > 0 and entrada > 0 else None
+
+    def _atualizar_markup(self) -> None:
+        custo = self._custo_unitario()
+        self.markup.setEnabled(custo is not None)
+        if custo is None:
+            self.markup.setText("—")
+            return
+        try:
+            venda = ler_decimal(self.preco_venda.text(), "Preço de venda")
+        except ErroDominio:
+            venda = Decimal(0)
+        # Sem preço ainda: campo vazio, esperando o markup para calcular o preço.
+        self.markup.setText(
+            "" if venda <= 0 else formatar_numero(arredondar((venda / custo - 1) * 100))
+        )
+
+    def _markup_editado(self, texto: str) -> None:
+        custo = self._custo_unitario()
+        if custo is None:
+            return
+        try:
+            pct = ler_decimal(texto, "Markup")
+        except ErroDominio:
+            return  # incompleto durante a digitação
+        preco = arredondar(custo * (1 + pct / 100))
+        if preco < 0:
+            return
+        self._markup_em_edicao = True
+        try:
+            self.preco_venda.setText(formatar_numero(preco))
+        finally:
+            self._markup_em_edicao = False
 
     def _dados(self) -> DadosProduto:
         return DadosProduto(

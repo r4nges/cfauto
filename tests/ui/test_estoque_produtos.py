@@ -77,6 +77,76 @@ def test_custo_unitario_e_margem_ao_vivo(qtbot, fabrica, relogio):
     assert dlg.margem_rotulo.text() == "—"
 
 
+def _dialogo_com_custo(qtbot, fabrica, fator="12", entrada="24,00"):
+    dlg = DialogoProduto(fabrica, _admin(fabrica))
+    qtbot.addWidget(dlg)
+    dlg.fator.setText(fator)
+    dlg.preco_entrada.setText(entrada)
+    return dlg  # custo por unidade: R$ 2,00
+
+
+def test_markup_digitado_calcula_o_preco_de_venda(qtbot, fabrica, relogio):
+    dlg = _dialogo_com_custo(qtbot, fabrica)
+    qtbot.keyClicks(dlg.markup, "50")
+    assert dlg.markup.text() == "50"  # não reescreve o que a pessoa está digitando
+    assert dlg.preco_venda.text() == "3,00"
+    assert dlg.margem_rotulo.text() == "33,3%"
+    qtbot.keyClicks(dlg.markup, ",5")
+    assert dlg.preco_venda.text() == "3,01"  # 2 × 1,505 = 3,01
+
+
+def test_preco_digitado_calcula_o_markup(qtbot, fabrica, relogio):
+    dlg = _dialogo_com_custo(qtbot, fabrica)
+    dlg.preco_venda.clear()
+    qtbot.keyClicks(dlg.preco_venda, "3,00")
+    assert dlg.markup.text() == "50,00"
+    dlg.preco_venda.setText("1,00")
+    assert dlg.markup.text() == "-50,00"
+
+
+def test_mudar_o_custo_mantem_o_preco_e_recalcula_o_markup(qtbot, fabrica, relogio):
+    dlg = _dialogo_com_custo(qtbot, fabrica)
+    dlg.preco_venda.setText("3,00")
+    assert dlg.markup.text() == "50,00"
+    dlg.preco_entrada.setText("30,00")  # custo por unidade: R$ 2,50
+    assert dlg.preco_venda.text() == "3,00"
+    assert dlg.markup.text() == "20,00"
+
+
+def test_markup_sem_custo_fica_desabilitado(qtbot, fabrica, relogio):
+    dlg = DialogoProduto(fabrica, _admin(fabrica))
+    qtbot.addWidget(dlg)
+    assert not dlg.markup.isEnabled()
+    assert dlg.markup.text() == "—"
+    dlg.preco_entrada.setText("24,00")
+    assert dlg.markup.isEnabled()
+    assert dlg.markup.text() == ""  # custo conhecido, preço ainda não: espera o markup
+    dlg.fator.setText("0")
+    assert not dlg.markup.isEnabled()
+    assert dlg.markup.text() == "—"
+
+
+def test_markup_digitado_vai_para_o_preco_salvo(qtbot, fabrica, relogio):
+    ator = _admin(fabrica)
+    dlg = DialogoProduto(fabrica, ator)
+    qtbot.addWidget(dlg)
+    dlg.descricao.setText("Café")
+    dlg.preco_entrada.setText("10,00")
+    qtbot.keyClicks(dlg.markup, "40")
+    dlg.salvar()
+    assert dlg.result() == 1
+    with transacao(fabrica) as s:
+        assert buscar_produtos(s, ator)[0].preco_venda == Decimal("14.00")
+
+
+def test_editar_mostra_o_markup_do_preco_cadastrado(qtbot, fabrica, relogio):
+    ator = _admin(fabrica)
+    produto = _criar(fabrica, ator, "Arroz", preco_entrada=Decimal("20"), preco_venda=Decimal("30"))
+    dlg = DialogoProduto(fabrica, ator, produto)
+    qtbot.addWidget(dlg)
+    assert dlg.markup.text() == "50,00"
+
+
 def test_editar_carrega_dados_e_marca_minimo_manual(qtbot, fabrica, relogio):
     ator = _admin(fabrica)
     produto = _criar(
