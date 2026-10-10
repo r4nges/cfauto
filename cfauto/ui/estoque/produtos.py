@@ -49,6 +49,7 @@ from cfauto.ui.comum import (
     mostrar_erro,
     preencher_tabela,
 )
+from cfauto.ui.tema import CLARO
 
 _COLUNAS = [
     "Código",
@@ -72,8 +73,8 @@ _COLUNAS_MOVIMENTOS = [
     "Motivo / observação",
     "Nota",
 ]
-_COR_ABAIXO_DO_MINIMO = QColor("#f8d7da")
-_COR_INATIVO = QColor("#888888")
+_COR_ABAIXO_DO_MINIMO = QColor(CLARO.perigo_fundo)
+_COR_INATIVO = QColor(CLARO.texto_secundario)
 _SALVAR_CANCELAR = QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
 
 

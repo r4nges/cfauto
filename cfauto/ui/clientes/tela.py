@@ -32,10 +32,11 @@ from cfauto.ui.clientes.dialogo_cliente import DialogoCliente
 from cfauto.ui.clientes.extrato import DialogoExtrato
 from cfauto.ui.clientes.lancamento import DialogoLancamento
 from cfauto.ui.comum import criar_tabela, mostrar_erro, preencher_tabela
+from cfauto.ui.tema import CLARO
 
 _COLUNAS = ["Código", "Nome", "Celular", "Saldo", "Disponível", "Situação"]
 _COLUNA_SALDO = 3
-COR_DEVEDOR = "#c0392b"
+COR_DEVEDOR = CLARO.erro
 
 
 class TelaClientes(QWidget):
