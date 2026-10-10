@@ -6,6 +6,7 @@ if ($LASTEXITCODE -ne 0) { throw "Testes falharam; build cancelado." }
 
 uv run pyinstaller --noconfirm --clean --onefile --windowed `
     --name CFAUTO `
+    --icon "cfauto/ui/recursos/icone.ico" `
     --add-data "cfauto/migrations;cfauto/migrations" `
     --add-data "cfauto/ui/recursos;cfauto/ui/recursos" `
     --collect-submodules cfauto `

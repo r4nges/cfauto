@@ -1,5 +1,5 @@
 import pytest
-from PySide6.QtGui import QFont, QPalette
+from PySide6.QtGui import QFont, QIcon, QPalette
 
 from cfauto.ui.tema import aplicar
 
@@ -20,3 +20,4 @@ def tema_isolado(qapp):
     if aplicar._tradutor is not None:
         qapp.removeTranslator(aplicar._tradutor)
         aplicar._tradutor = None
+    qapp.setWindowIcon(QIcon())

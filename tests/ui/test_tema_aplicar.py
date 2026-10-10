@@ -72,6 +72,22 @@ def test_passo_com_falha_nao_interrompe_os_seguintes(tema_isolado, monkeypatch, 
     assert tema_isolado.translate("QPlatformTheme", "Cancel") == "Cancelar"
 
 
+def test_icone_do_app_e_definido(tema_isolado):
+    aplicar_tema(tema_isolado)
+    assert not tema_isolado.windowIcon().isNull()
+
+
+def test_icone_ausente_nao_levanta_e_loga(tema_isolado, monkeypatch, tmp_path, caplog):
+    monkeypatch.setattr(aplicar, "ARQUIVO_ICONE", tmp_path / "nao-existe.ico")
+    _partir_de_estilo_nao_fusion(tema_isolado)
+    with caplog.at_level(logging.ERROR, logger="cfauto.ui"):
+        aplicar_tema(tema_isolado)
+    assert any("ícone" in r.getMessage() for r in caplog.records)
+    assert tema_isolado.windowIcon().isNull()
+    assert tema_isolado.styleSheet()
+    assert _estilo_base(tema_isolado) == "fusion"
+
+
 def test_aplicar_duas_vezes_nao_empilha_tradutores(tema_isolado):
     aplicar_tema(tema_isolado)
     primeiro = aplicar._tradutor

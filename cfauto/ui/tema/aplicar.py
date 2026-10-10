@@ -3,7 +3,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import QLibraryInfo, Qt, QTranslator
-from PySide6.QtGui import QColor, QFont, QPalette
+from PySide6.QtGui import QColor, QFont, QIcon, QPalette
 from PySide6.QtWidgets import QApplication
 
 from cfauto.ui.tema.qss import ARQUIVO_SETA_BAIXO, gerar_qss
@@ -12,6 +12,7 @@ from cfauto.ui.tema.tokens import CLARO, Tokens
 log = logging.getLogger("cfauto.ui")
 RECURSOS = Path(__file__).resolve().parent.parent / "recursos"
 ARQUIVO_TRADUCAO = "qtbase_pt_BR.qm"
+ARQUIVO_ICONE = RECURSOS / "icone.ico"
 _tradutor: QTranslator | None = None
 
 
@@ -67,6 +68,13 @@ def _aplicar_folha(qapp: QApplication, tokens: Tokens) -> None:
     qapp.setStyleSheet(gerar_qss(tokens, seta_baixo=ARQUIVO_SETA_BAIXO))
 
 
+def _instalar_icone(qapp: QApplication) -> None:
+    icone = QIcon(str(ARQUIVO_ICONE))
+    if icone.isNull():
+        raise FileNotFoundError(f"ícone do app ausente ou ilegível: {ARQUIVO_ICONE}")
+    qapp.setWindowIcon(icone)
+
+
 def aplicar_tema(qapp: QApplication, tokens: Tokens = CLARO) -> None:
     """Aplica o tema na aplicação. Cada passo falho é logado e não impede os seguintes."""
     passos: list[tuple[str, Callable[[], object]]] = [
@@ -76,6 +84,7 @@ def aplicar_tema(qapp: QApplication, tokens: Tokens = CLARO) -> None:
         ("fonte", lambda: qapp.setFont(QFont(tokens.fonte_familia, tokens.fonte_pt))),
         ("folha de estilo", lambda: _aplicar_folha(qapp, tokens)),
         ("tradução", lambda: _instalar_traducao(qapp)),
+        ("ícone", lambda: _instalar_icone(qapp)),
     ]
     for nome, passo in passos:
         try:
