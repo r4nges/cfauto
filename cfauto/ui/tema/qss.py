@@ -119,6 +119,13 @@ QPushButton[papel="primario"]:disabled, QPushButton:default:disabled {
     border-color: ${linha_campo};
     color: ${superficie};
 }
+QAbstractItemView QPushButton:default {
+    background: ${superficie};
+    color: ${texto};
+    border: 1px solid ${linha_campo};
+    font-weight: normal;
+}
+QAbstractItemView QPushButton:default:hover { background: ${superficie}; border-color: ${indigo}; }
 QPushButton[papel="perigo"] { color: ${perigo}; border: 1px solid ${perigo}; }
 QPushButton[papel="perigo"]:hover { background: ${perigo_fundo}; }
 

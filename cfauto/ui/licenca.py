@@ -49,6 +49,7 @@ class DialogoLicenca(QDialog):
         self.rotulo_erro.setProperty("papel", "erro")
 
         form = QFormLayout()
+        form.setHorizontalSpacing(12)
         form.setVerticalSpacing(10)
         form.addRow("ID desta máquina", campo_maquina)
         form.addRow("Chave", self.campo_chave)

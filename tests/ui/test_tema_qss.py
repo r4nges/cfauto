@@ -1,8 +1,8 @@
 from pathlib import Path
 
 from PySide6.QtCore import qInstallMessageHandler
-from PySide6.QtGui import QImage
-from PySide6.QtWidgets import QPushButton
+from PySide6.QtGui import QColor, QImage
+from PySide6.QtWidgets import QDialog, QPushButton, QTableWidget, QVBoxLayout
 
 from cfauto.ui.tema.qss import ARQUIVO_SETA_BAIXO, gerar_qss
 from cfauto.ui.tema.tokens import CLARO
@@ -79,3 +79,31 @@ def test_qss_nao_gera_erro_de_parse(tema_isolado):
         qInstallMessageHandler(anterior)
     assert invalida, "o handler não capturou o erro de uma folha inválida"
     assert not [m for m in mensagens if "parse" in m.lower()]
+
+
+def _fundo_do_botao(botao: QPushButton) -> QColor:
+    """Cor de fundo pintada: um ponto da faixa de padding, acima do texto."""
+    imagem = botao.grab().toImage()
+    return imagem.pixelColor(imagem.width() // 2, 3)
+
+
+def test_botao_padrao_em_celula_de_tabela_nao_vira_primario(tema_isolado, qtbot):
+    """Num diálogo com tabela de botões (conferência da NF-e), o primeiro botão da tabela
+    vira o "padrão" do diálogo; indigo ali parece a ação principal. Fora da tabela continua."""
+    tema_isolado.setStyleSheet(gerar_qss(CLARO))
+    dialogo = QDialog()
+    qtbot.addWidget(dialogo)
+    tabela = QTableWidget(1, 1)
+    na_celula = QPushButton("Escolher produto")
+    tabela.setCellWidget(0, 0, na_celula)
+    fora = QPushButton("Confirmar")
+    layout = QVBoxLayout(dialogo)
+    layout.addWidget(tabela)
+    layout.addWidget(fora)
+    na_celula.setDefault(True)
+    fora.setDefault(True)  # só um é o padrão por vez; os dois são conferidos em sequência
+    dialogo.show()
+    assert _fundo_do_botao(fora) == QColor(CLARO.indigo)
+    na_celula.setDefault(True)
+    assert na_celula.isDefault()
+    assert _fundo_do_botao(na_celula) == QColor(CLARO.superficie)

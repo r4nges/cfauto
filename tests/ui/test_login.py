@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QDialogButtonBox
+from PySide6.QtWidgets import QDialogButtonBox, QFormLayout
 
 from cfauto.auth.service import NovoUsuario, criar_usuario
 from cfauto.core.db import transacao
@@ -78,3 +78,13 @@ def test_botao_entrar_e_o_padrao_do_dialogo(qtbot, fabrica):
     botoes = dlg.findChild(QDialogButtonBox)
     assert botoes.button(QDialogButtonBox.StandardButton.Ok).text() == "Entrar"
     assert botoes.button(QDialogButtonBox.StandardButton.Ok).isDefault()
+
+
+def test_formulario_do_login_afasta_o_rotulo_do_campo(qtbot, fabrica):
+    """O formulário fica numa coluna dentro de um layout de espaçamento 0 (o painel de marca
+    encosta na coluna): sem espaçamento próprio ele herdaria 0 e o rótulo colaria no campo."""
+    dlg = DialogoLogin(fabrica)
+    qtbot.addWidget(dlg)
+    form = dlg.findChild(QFormLayout)
+    assert form is not None
+    assert form.horizontalSpacing() >= 8

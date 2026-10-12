@@ -1,6 +1,7 @@
 from datetime import date
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from PySide6.QtWidgets import QFormLayout
 
 from cfauto.licenca.formato import PayloadLicenca, assinar
 from cfauto.licenca.service import EstadoLicenca, StatusLicenca
@@ -31,3 +32,12 @@ def test_dialogo_de_licenca_tem_painel_de_marca_e_papeis(qtbot, fabrica):
     assert dlg.rotulo_titulo.text() == "Ativar licença"
     assert dlg.rotulo_erro.property("papel") == "erro"
     assert dlg.rotulo_erro.styleSheet() == ""
+
+
+def test_formulario_da_licenca_afasta_o_rotulo_do_campo(qtbot, fabrica):
+    """Mesma herança de espaçamento 0 do login (o painel de marca encosta na coluna)."""
+    dlg = DialogoLicenca(fabrica, EstadoLicenca(StatusLicenca.AUSENTE))
+    qtbot.addWidget(dlg)
+    form = dlg.findChild(QFormLayout)
+    assert form is not None
+    assert form.horizontalSpacing() >= 8

@@ -45,6 +45,7 @@ class DialogoLogin(QDialog):
         self.rotulo_erro.setProperty("papel", "erro")
 
         form = QFormLayout()
+        form.setHorizontalSpacing(12)
         form.setVerticalSpacing(10)
         form.addRow("Login", self.campo_login)
         form.addRow("Senha", self.campo_senha)
